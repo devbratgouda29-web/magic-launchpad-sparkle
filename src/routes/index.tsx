@@ -1,24 +1,133 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { quotes } from "@/lib/quotes";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "From The Last Bench — Notes That Actually Make Sense" },
+      {
+        name: "description",
+        content:
+          "Study notes, focus tracking, recall drills and discipline habits in one app. Built for students who start from the last bench.",
+      },
+      {
+        property: "og:title",
+        content: "From The Last Bench — Notes That Actually Make Sense",
+      },
+      {
+        property: "og:description",
+        content:
+          "Study notes, focus tracking, recall drills and discipline habits in one app.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: SplashRoute,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+/**
+ * Safety wrapper: if anything in the splash screen throws while rendering, we
+ * show a minimal branded message and send the user straight to /home instead
+ * of leaving a black screen behind.
+ */
+function SplashRoute() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <ErrorBoundary fallback={() => <SplashFallback />}>
+      <SplashPage />
+    </ErrorBoundary>
+  );
+}
+
+function SplashFallback() {
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (typeof window !== "undefined") window.location.assign("/home");
+    }, 600);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-6 text-center">
+      <p className="text-sm font-black uppercase tracking-[0.28em] text-amber-400">
+        From The Last Bench
+      </p>
+      <p className="mt-3 text-sm text-muted-foreground">Opening your home screen…</p>
+      <a
+        href="/home"
+        className="mt-6 inline-flex items-center justify-center rounded-md bg-amber-400 px-4 py-2 text-sm font-semibold text-black"
+      >
+        Continue
+      </a>
+    </div>
+  );
+}
+
+/**
+ * Inline emblem fallback. If the CDN asset ever fails to resolve, we swap in
+ * this self-contained SVG instead of letting the browser render raw alt text.
+ */
+const EMBLEM_FALLBACK =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="From The Last Bench emblem">
+      <circle cx="120" cy="120" r="112" fill="none" stroke="#fbbf24" stroke-width="6"/>
+      <g stroke="#fbbf24" stroke-width="8" stroke-linecap="round" fill="none">
+        <circle cx="120" cy="72" r="18" fill="#fbbf24"/>
+        <path d="M120 92 V148"/>
+        <path d="M120 106 L92 128 M120 106 L148 128"/>
+        <path d="M120 148 L100 190 M120 148 L140 190"/>
+      </g>
+      <rect x="52" y="196" width="136" height="12" rx="6" fill="#fbbf24"/>
+      <text x="120" y="232" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" font-weight="700" fill="#fbbf24">LAST BENCH</text>
+    </svg>`,
+  );
+
+function SplashPage() {
+  const navigate = useNavigate();
+  const [src, setSrc] = useState("/splash-logo.png");
+
+  // Pick a random quote from the imported Sovereign Whisper collection
+  const [splashQuote] = useState(() => {
+    if (!quotes || quotes.length === 0) return "The best brains of the nation may be found on the last bench of the classroom.";
+    return quotes[Math.floor(Math.random() * quotes.length)];
+  });
+ 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        void navigate({ to: "/home", replace: true });
+      } catch {
+        window.location.assign("/home");
+      }
+    }, 7000);
+    return () => clearTimeout(t);
+  }, [navigate]);
+
+  return (
+    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 text-foreground">
+      <div className="flex w-full flex-col items-center">
+        <img
+          src={src}
+          onError={() => {
+            if (src !== EMBLEM_FALLBACK) setSrc(EMBLEM_FALLBACK);
+          }}
+          alt="From The Last Bench stickman emblem"
+          width={320}
+          height={320}
+          style={{ width: "100%", height: "auto", objectFit: "contain" }}
+          className="mx-auto block max-w-[220px] drop-shadow-xl sm:max-w-[320px]"
+          draggable={false}
+        />
+      </div>
+      <p className="mt-[20px] max-w-xl px-6 text-center text-lg font-extrabold uppercase leading-snug tracking-wide text-amber-400 sm:text-xl md:text-2xl">
+        "{splashQuote}"
+      </p>
+      <div className="mt-6 h-1 w-40 overflow-hidden rounded-full bg-primary-foreground/20">
+        <div className="h-full w-full origin-left animate-[splash-progress_7s_linear_forwards] rounded-full bg-accent-amber" />
+      </div>
     </div>
   );
 }
