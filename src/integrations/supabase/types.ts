@@ -17,8 +17,10 @@ export type Database = {
       notes: {
         Row: {
           concepts: string | null
+          cover_image_url: string | null
           created_at: string
           description: string | null
+          division: string
           hidden: boolean
           id: string
           is_free: boolean
@@ -38,8 +40,10 @@ export type Database = {
         }
         Insert: {
           concepts?: string | null
+          cover_image_url?: string | null
           created_at?: string
           description?: string | null
+          division?: string
           hidden?: boolean
           id?: string
           is_free?: boolean
@@ -59,8 +63,10 @@ export type Database = {
         }
         Update: {
           concepts?: string | null
+          cover_image_url?: string | null
           created_at?: string
           description?: string | null
+          division?: string
           hidden?: boolean
           id?: string
           is_free?: boolean
