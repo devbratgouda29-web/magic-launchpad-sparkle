@@ -14,8 +14,11 @@ import {
   noteLanguages,
   pageCountForLanguage,
   pdfPathForLanguage,
+  notePrice,
+  noteTierLabel,
   type Note,
 } from "@/lib/notes-store";
+import { CheckoutModal } from "@/components/CheckoutModal";
 import { IS_TESTING_MODE } from "@/lib/testing-mode";
 import { listPurchasedNoteIds } from "@/lib/notes-store";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,6 +57,7 @@ function NoteDetailPage() {
   const { isAdmin } = useIsAdmin();
   const [owned, setOwned] = useState(false);
   const [buying, setBuying] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -83,6 +87,10 @@ function NoteDetailPage() {
   /** Simulated checkout: records the purchase, then opens the reader. */
   const buyNow = async () => {
     if (!requireAuth("generic")) return;
+    if (price > 0) {
+      setCheckoutOpen(true);
+      return;
+    }
     setBuying(true);
     try {
       await recordUnlock();
@@ -127,7 +135,7 @@ function NoteDetailPage() {
   const concepts = note ? conceptList(note) : [];
   const availableLanguages = note ? noteLanguages(note, notes) : ["hinglish", "english"];
   const hasVariant = note ? Boolean(pdfPathForLanguage(note, language, notes)) : true;
-  const price = note ? (note.is_free ? 0 : note.price_inr) : 29;
+  const price = note ? notePrice(note) : 20;
 
   return (
     <div className="flex flex-col gap-6 px-5 pt-4">
@@ -157,7 +165,7 @@ function NoteDetailPage() {
           Precision Typed
         </div>
         <div className="mt-3 flex items-center gap-2 rounded-full bg-accent-amber px-3 py-1.5 text-sm font-bold text-accent-amber-foreground w-fit">
-          {price === 0 ? "Free · Lifetime" : `₹${price} · Lifetime`}
+          {price === 0 ? "Free · Lifetime" : `₹${price} · ${note ? noteTierLabel(note) : "Topic Note"}`}
         </div>
       </div>
 
@@ -247,7 +255,7 @@ function NoteDetailPage() {
                 <Loader2 className="h-4 w-4 animate-spin" /> Processing…
               </>
             ) : (
-              <>Buy Now · {price === 0 ? "Free" : `₹${price}`}</>
+              <>{price === 0 ? "Read Free" : `Unlock Note · ₹${price}`}</>
             )}
           </Button>
         )}
@@ -261,6 +269,22 @@ function NoteDetailPage() {
           <BookOpen className="h-4 w-4" />
         </Button>
       </div>
+
+      {note && (
+        <CheckoutModal
+          open={checkoutOpen}
+          onOpenChange={setCheckoutOpen}
+          item={{ title: note.title, price, kind: "note" }}
+          onActivated={async () => {
+            try {
+              await recordUnlock();
+              setOwned(true);
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Unlock failed");
+            }
+          }}
+        />
+      )}
 
       {previewOpen && (
         <Suspense fallback={null}>

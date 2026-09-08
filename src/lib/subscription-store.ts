@@ -1,10 +1,10 @@
 import { IS_TESTING_MODE } from "@/lib/testing-mode";
 
-// 5-day trial + rolling 30-day paid subscription gate for the Discipline hub.
+// 7-day free trial + rolling 30-day paid subscription gate for the Discipline hub.
 
 const TRIAL_KEY = "ftlb.sub.trialStartedAt";
 const PAID_KEY = "ftlb.sub.paidUntil";
-const TRIAL_MS = 5 * 24 * 60 * 60 * 1000;
+const TRIAL_MS = 7 * 24 * 60 * 60 * 1000;
 const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
 
 function readNum(key: string): number | null {
@@ -73,7 +73,7 @@ export function isPaidActive(now: number = Date.now()): boolean {
 }
 
 /**
- * Account-anchored trial: 5 free days counted from the user's account
+ * Account-anchored trial: 7 free days counted from the user's account
  * `created_at` timestamp (works across devices, unlike the local fallback).
  */
 export function accountTrialRemainingMs(createdAtMs: number | null, now: number = Date.now()): number {

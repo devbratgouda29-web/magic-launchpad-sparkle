@@ -368,3 +368,19 @@ export async function uploadCoverImage(file: File): Promise<string> {
   return data.signedUrl;
 }
 
+
+/**
+ * Store price for a pack: free packs are 0, master subject packs (`is_pro`)
+ * are ₹30 and individual topic packs are ₹20. An explicit `price_inr` set by
+ * an admin always wins.
+ */
+export function notePrice(note: Pick<Note, "is_free" | "is_pro" | "price_inr">): number {
+  if (note.is_free) return 0;
+  if (note.price_inr && note.price_inr > 0) return note.price_inr;
+  return note.is_pro ? 30 : 20;
+}
+
+/** Label shown on the price tag of a note card. */
+export function noteTierLabel(note: Pick<Note, "is_pro">): string {
+  return note.is_pro ? "Master Subject" : "Topic Note";
+}

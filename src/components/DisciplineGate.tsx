@@ -29,7 +29,7 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
 
   const refresh = () => {
     const now = Date.now();
-    // Signed-in users: the 5-day trial is anchored to the account's
+    // Signed-in users: the 7-day trial is anchored to the account's
     // created_at so it behaves identically on every device. Signed-out
     // visitors fall back to the device-local trial clock.
     const createdAtMs = user?.created_at ? Date.parse(user.created_at) : null;
@@ -74,7 +74,7 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
             <Lock className="h-7 w-7" />
           </div>
           <p className="mt-5 text-[10px] font-bold uppercase tracking-[0.3em] text-amber-300">
-            Trial Completed
+            7-Day Free Trial Completed
           </p>
           <h2 className="mt-2 text-2xl font-black uppercase tracking-tight text-white">
             Cadet, your vault is sealed.
