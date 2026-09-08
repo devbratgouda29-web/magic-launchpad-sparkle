@@ -1,10 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Crown, Lock, ShieldCheck, Sparkles } from "lucide-react";
+import { Crown, Eye, Lock, ShieldCheck, Sparkles } from "lucide-react";
 import {
   isTrialActive,
   trialDaysRemaining,
   paidDaysRemaining,
-  simulatePayment,
   isPaidActive,
   accountTrialRemainingMs,
   accountTrialDaysRemaining,
@@ -12,6 +11,8 @@ import {
 import { IS_TESTING_MODE } from "@/lib/testing-mode";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { CheckoutModal, PASS } from "@/components/CheckoutModal";
+
 
 
 export function DisciplineGate({ children }: { children: ReactNode }) {
