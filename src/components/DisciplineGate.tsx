@@ -139,7 +139,7 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
 
   return (
     <div className="relative">
-      <div className="sticky top-0 z-30 flex justify-center px-5 pt-3">
+      <div className="sticky top-0 z-30 flex flex-wrap items-center justify-center gap-2 px-5 pt-3">
         <div
           className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] backdrop-blur ${
             isAdmin
@@ -161,7 +161,18 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
                 : `Member · ${paidDays} day${paidDays === 1 ? "" : "s"} remaining`}
 
         </div>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setAdminPreview(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-violet-300 backdrop-blur hover:bg-violet-400/20"
+          >
+            <Eye className="h-3 w-3" />
+            Preview Paywall
+          </button>
+        )}
       </div>
+
       {flash && (
         <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center">
           <div className="rounded-full border border-emerald-400/40 bg-emerald-400/15 px-4 py-2 text-[11px] font-black uppercase tracking-widest text-emerald-200 backdrop-blur">
