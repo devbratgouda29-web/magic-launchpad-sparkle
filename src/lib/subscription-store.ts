@@ -73,7 +73,7 @@ export function isPaidActive(now: number = Date.now()): boolean {
 }
 
 /**
- * Account-anchored trial: 5 free days counted from the user's account
+ * Account-anchored trial: 7 free days counted from the user's account
  * `created_at` timestamp (works across devices, unlike the local fallback).
  */
 export function accountTrialRemainingMs(createdAtMs: number | null, now: number = Date.now()): number {

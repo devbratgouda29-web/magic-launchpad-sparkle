@@ -29,7 +29,7 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
 
   const refresh = () => {
     const now = Date.now();
-    // Signed-in users: the 5-day trial is anchored to the account's
+    // Signed-in users: the 7-day trial is anchored to the account's
     // created_at so it behaves identically on every device. Signed-out
     // visitors fall back to the device-local trial clock.
     const createdAtMs = user?.created_at ? Date.parse(user.created_at) : null;
