@@ -161,7 +161,8 @@ function HomePage() {
     title: n.title,
     tag: n.subject || "Notes",
     division: n.division ?? "General",
-    price: n.is_free ? 0 : n.price_inr,
+    price: notePrice(n),
+    isPro: n.is_pro,
     isFree: n.is_free,
     coverImageUrl: n.cover_image_url ?? null,
   }));
@@ -380,6 +381,11 @@ function HomePage() {
                 <span className="absolute bottom-3 right-3 rounded-full bg-accent-amber px-2 py-0.5 text-[11px] font-bold text-accent-amber-foreground">
                   {n.isFree ? "Free" : `₹${n.price}`}
                 </span>
+                {!n.isFree && (
+                  <span className="absolute left-3 top-3 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white/85">
+                    {n.isPro ? "Master" : "Topic"}
+                  </span>
+                )}
               </div>
               <p className="mt-2 truncate text-sm font-semibold">{n.title}</p>
               <div className="flex items-center justify-between text-[11px] text-muted-foreground gap-2">

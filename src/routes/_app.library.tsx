@@ -25,6 +25,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   listNotes,
   listPurchasedNoteIds,
+  notePrice,
   noteMatchesLanguage,
   type Note,
   type ReadableLanguage,
@@ -114,7 +115,7 @@ function LibraryPage() {
             return {
               id: n.id,
               title: n.title,
-              tag: n.subject || (n.is_free ? "Free" : `₹${n.price_inr}`),
+              tag: n.subject || (n.is_free ? "Free" : `₹${notePrice(n)}`),
               progress: 0,
               avgRating: s && s.count ? s.sum / s.count : 0,
               reviews: s?.count ?? 0,
