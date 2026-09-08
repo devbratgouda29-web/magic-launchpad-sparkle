@@ -22,8 +22,10 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
   const [trialDays, setTrialDays] = useState(0);
   const [paidDays, setPaidDays] = useState(0);
   const [onTrial, setOnTrial] = useState(false);
-  const [paying, setPaying] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [adminPreview, setAdminPreview] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
+
 
   const refresh = () => {
     const now = Date.now();
