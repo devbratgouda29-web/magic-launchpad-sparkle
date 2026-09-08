@@ -7,7 +7,7 @@ import { getAllItems, getFracturedItems, restoreItem, subscribe as subscribeRevi
 import { TierBadge, type TierNumber } from "@/components/TierBadge";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { listNotes, type Note } from "@/lib/notes-store";
+import { listNotes, notePrice, type Note } from "@/lib/notes-store";
 
 
 export const Route = createFileRoute("/_app/home")({
@@ -68,6 +68,7 @@ type ChapterNote = {
   price: number;
   division?: string;
   isFree: boolean;
+  isPro: boolean;
   coverImageUrl: string | null;
 };
 
