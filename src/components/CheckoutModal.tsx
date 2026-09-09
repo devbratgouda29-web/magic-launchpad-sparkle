@@ -106,7 +106,9 @@ export function CheckoutModal({
   const [processing, setProcessing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [qrFailed, setQrFailed] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
   const [done, setDone] = useState<{ expiresAt: number | null; reference: string } | null>(null);
+
 
   const isPass = item.kind === "pass";
   const deepLink = useMemo(() => upiDeepLink(item.price, item.title), [item.price, item.title]);
