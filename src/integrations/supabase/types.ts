@@ -181,10 +181,12 @@ export type Database = {
           comment: string | null
           created_at: string
           headline: string | null
+          helpful_count: number
           hidden: boolean
           id: string
           note_id: string
           rating: number
+          unhelpful_count: number
           updated_at: string
           user_id: string | null
         }
@@ -194,10 +196,12 @@ export type Database = {
           comment?: string | null
           created_at?: string
           headline?: string | null
+          helpful_count?: number
           hidden?: boolean
           id?: string
           note_id: string
           rating: number
+          unhelpful_count?: number
           updated_at?: string
           user_id?: string | null
         }
@@ -207,10 +211,12 @@ export type Database = {
           comment?: string | null
           created_at?: string
           headline?: string | null
+          helpful_count?: number
           hidden?: boolean
           id?: string
           note_id?: string
           rating?: number
+          unhelpful_count?: number
           updated_at?: string
           user_id?: string | null
         }
@@ -278,22 +284,7 @@ export type Database = {
       }
     }
     Views: {
-      review_vote_counts: {
-        Row: {
-          helpful: number | null
-          review_id: string | null
-          unhelpful: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "review_votes_review_id_fkey"
-            columns: ["review_id"]
-            isOneToOne: false
-            referencedRelation: "reviews"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
       has_role: {
