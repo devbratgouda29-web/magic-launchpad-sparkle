@@ -118,16 +118,18 @@ export function ReviewsSection({ noteId }: Props) {
       try {
         const { data: rows } = await supabase
           .from("reviews")
-          .select("id, user_id, rating, headline, comment, author_name, author_city, created_at")
+          .select(
+            "id, user_id, rating, headline, comment, author_name, author_city, created_at, helpful_count, unhelpful_count",
+          )
           .eq("note_id", noteId)
           .eq("hidden", false)
           .order("created_at", { ascending: false });
 
 
-        const list = (rows ?? []) as Omit<
+        const list = (rows ?? []) as (Omit<
           Review,
           "verified" | "helpful" | "unhelpful" | "myVote"
-        >[];
+        > & { helpful_count?: number | null; unhelpful_count?: number | null })[];
 
         if (!list.length) {
           setReviews(MOCK_REVIEWS);
@@ -140,12 +142,15 @@ export function ReviewsSection({ noteId }: Props) {
           new Set(list.map((r) => r?.user_id).filter((v): v is string => !!v)),
         );
 
-        const [{ data: votes }, { data: profs }, { data: buyers }] = await Promise.all([
-          ids.length
-            ? supabase.from("review_votes").select("review_id, user_id, vote").in("review_id", ids)
-            : Promise.resolve({
-                data: [] as { review_id: string; user_id: string; vote: number }[],
-              }),
+        const [{ data: myVotes }, { data: profs }, { data: buyers }] = await Promise.all([
+          // Raw votes are private: a signed-in user can only read their own.
+          uid && ids.length
+            ? supabase
+                .from("review_votes")
+                .select("review_id, vote")
+                .eq("user_id", uid)
+                .in("review_id", ids)
+            : Promise.resolve({ data: [] as { review_id: string; vote: number }[] }),
           accountIds.length
             ? supabase.from("profiles").select("id, full_name").in("id", accountIds)
             : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
@@ -160,21 +165,21 @@ export function ReviewsSection({ noteId }: Props) {
 
         const nameMap = new Map((profs || []).map((p) => [p?.id, p?.full_name]));
         const buyerSet = new Set((buyers || []).map((b) => b?.user_id));
+        const myVoteMap = new Map((myVotes || []).map((v) => [v?.review_id, v?.vote]));
 
         const merged: Review[] = list.map((r) => {
-          const mine = (votes || []).filter((v) => v?.review_id === r?.id);
+          const { helpful_count, unhelpful_count, ...rest } = r;
           return {
-            ...r,
+            ...rest,
             profile_name: r?.user_id ? (nameMap.get(r.user_id) ?? null) : null,
             // Seeded reviews carry an author name and are shown as verified purchases.
             verified: r?.user_id ? buyerSet.has(r.user_id) : true,
-            helpful: mine.filter((v) => v?.vote === 1).length,
-            unhelpful: mine.filter((v) => v?.vote === -1).length,
-            myVote: uid
-              ? ((mine.find((v) => v?.user_id === uid)?.vote as -1 | 1 | undefined) ?? null)
-              : null,
+            helpful: helpful_count ?? 0,
+            unhelpful: unhelpful_count ?? 0,
+            myVote: (myVoteMap.get(r.id) as -1 | 1 | undefined) ?? null,
           };
         });
+
 
         setReviews(merged.length ? merged : MOCK_REVIEWS);
       } catch (err) {
