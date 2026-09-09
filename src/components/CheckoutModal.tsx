@@ -139,11 +139,62 @@ export function CheckoutModal({
     [isPass, onActivated, previewOnly],
   );
 
+  const payWithRazorpay = useCallback(async () => {
+    setPayError(null);
+    if (previewOnly) {
+      activate("PREVIEW-RZP");
+      return;
+    }
+    setProcessing(true);
+    try {
+      const ok = await loadRazorpayScript();
+      if (!ok || !window.Razorpay) throw new Error("Could not load the payment window.");
+      const order = await createRazorpayOrder({
+        data: { amount: item.price, label: item.title },
+      });
+      setProcessing(false);
+      const rzp = new window.Razorpay({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        order_id: order.orderId,
+        name: UPI_PAYEE_NAME,
+        description: item.title,
+        theme: { color: "#f59e0b" },
+        modal: { ondismiss: () => setProcessing(false) },
+        handler: (resp: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          void (async () => {
+            setProcessing(true);
+            const result = await verifyRazorpayPayment({
+              data: {
+                orderId: resp.razorpay_order_id,
+                paymentId: resp.razorpay_payment_id,
+                signature: resp.razorpay_signature,
+              },
+            });
+            setProcessing(false);
+            if (result.valid) activate(resp.razorpay_payment_id);
+            else setPayError("We could not verify that payment. Please contact support.");
+          })();
+        },
+      });
+      rzp.open();
+    } catch (err) {
+      setProcessing(false);
+      setPayError(err instanceof Error ? err.message : "Payment could not be started.");
+    }
+  }, [activate, item.price, item.title, previewOnly]);
+
   const copyUpi = useCallback(() => {
     void navigator.clipboard?.writeText(UPI_ID);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
   }, []);
+
 
   const close = useCallback(() => {
     onOpenChange(false);
