@@ -278,7 +278,22 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      review_vote_counts: {
+        Row: {
+          helpful: number | null
+          review_id: string | null
+          unhelpful: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_votes_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "reviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       has_role: {
