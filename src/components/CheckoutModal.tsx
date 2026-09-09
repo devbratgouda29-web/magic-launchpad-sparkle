@@ -118,7 +118,9 @@ export function CheckoutModal({
     setUtr("");
     setProcessing(false);
     setCopied(false);
+    setPayError(null);
     setDone(null);
+
   }, []);
 
   const activate = useCallback(
