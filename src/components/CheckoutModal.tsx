@@ -273,6 +273,25 @@ export function CheckoutModal({
               </p>
             )}
 
+            <button
+              type="button"
+              disabled={processing}
+              onClick={() => void payWithRazorpay()}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3.5 text-sm font-black uppercase tracking-widest text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-110 disabled:opacity-50"
+            >
+              <CreditCard className="h-4 w-4" />
+              {processing ? "Opening…" : `Pay Securely · ₹${item.price}`}
+            </button>
+            <p className="mt-2 text-center text-[10px] uppercase tracking-widest text-muted-foreground/70">
+              Card · Netbanking · Wallet · UPI
+            </p>
+
+            {payError && (
+              <p className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-[11px] font-bold text-destructive">
+                {payError}
+              </p>
+            )}
+
             <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-background/50 p-1">
               <TabBtn active={tab === "upi"} onClick={() => setTab("upi")} icon={QrCode}>
                 Pay via UPI / QR
@@ -281,6 +300,7 @@ export function CheckoutModal({
                 Manual Verification
               </TabBtn>
             </div>
+
 
             {tab === "upi" ? (
               <div className="mt-5">
