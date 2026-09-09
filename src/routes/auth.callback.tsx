@@ -29,17 +29,49 @@ function AuthCallback() {
     let active = true;
     void (async () => {
       try {
-        const hash = window.location.hash.startsWith("#")
+        const rawHash = window.location.hash.startsWith("#")
           ? window.location.hash.slice(1)
           : window.location.hash;
-        const params = new URLSearchParams(hash || window.location.search.slice(1));
-        if (params.get("type") === "recovery") {
-          window.location.replace(`/reset-password#${hash}`);
+        const hashParams = new URLSearchParams(rawHash);
+        const query = new URLSearchParams(window.location.search);
+
+        if (hashParams.get("type") === "recovery") {
+          window.location.replace(`/reset-password#${rawHash}`);
           return;
         }
+
+        // 1) PKCE / email-confirmation code flow
+        const code = query.get("code");
+        if (code) {
+          await supabase.auth.exchangeCodeForSession(code);
+        }
+
+        // 2) Implicit flow: tokens arrive in the URL hash
+        const access_token = hashParams.get("access_token");
+        const refresh_token = hashParams.get("refresh_token");
+        if (!code && access_token && refresh_token) {
+          await supabase.auth.setSession({ access_token, refresh_token });
+        }
+
+        // 3) Older confirmation links carry a token_hash to verify
+        const token_hash = query.get("token_hash") ?? hashParams.get("token_hash");
+        const otpType = (query.get("type") ?? hashParams.get("type")) as
+          | "signup"
+          | "email"
+          | "magiclink"
+          | "invite"
+          | "email_change"
+          | null;
+        if (!code && !access_token && token_hash && otpType) {
+          await supabase.auth.verifyOtp({ token_hash, type: otpType });
+        }
+
+        // Clean the sensitive bits out of the address bar.
+        window.history.replaceState({}, "", "/auth/callback");
+
         const { data } = await supabase.auth.getSession();
         if (!active) return;
-        navigate({ to: data.session ? "/profile" : "/home", replace: true });
+        navigate({ to: data.session ? "/home" : "/home", replace: true });
       } catch {
         if (active) navigate({ to: "/home", replace: true });
       }
@@ -48,6 +80,7 @@ function AuthCallback() {
       active = false;
     };
   }, [navigate]);
+
 
   return (
     <main className="grid min-h-screen place-items-center gap-3 bg-background p-6 text-center">
