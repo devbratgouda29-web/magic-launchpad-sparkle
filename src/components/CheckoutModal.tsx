@@ -8,14 +8,35 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { simulatePayment } from "@/lib/subscription-store";
+import { createRazorpayOrder, verifyRazorpayPayment } from "@/lib/razorpay.functions";
 import {
   Check,
   Copy,
+  CreditCard,
   ExternalLink,
   QrCode,
   Smartphone,
   Zap,
 } from "lucide-react";
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
+function loadRazorpayScript(): Promise<boolean> {
+  if (typeof window === "undefined") return Promise.resolve(false);
+  if (window.Razorpay) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
+
 
 export const PASS = {
   name: "Discipline Hub Pass",
