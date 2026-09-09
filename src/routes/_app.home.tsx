@@ -368,31 +368,20 @@ function HomePage() {
             >
             <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-crimson-gradient">
                 {n.coverImageUrl && (
-                  <>
-                    <img
-                      src={n.coverImageUrl}
-                      alt=""
-                      loading="lazy"
-                      draggable={false}
-                      className="absolute inset-0 h-full w-full select-none object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-black/40" />
-                  </>
-                )}
-                <span className="absolute bottom-3 right-3 rounded-full bg-accent-amber px-2 py-0.5 text-[11px] font-bold text-accent-amber-foreground">
-                  {n.isFree ? "Free" : `₹${n.price}`}
-                </span>
-                {!n.isFree && (
-                  <span className="absolute left-3 top-3 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white/85">
-                    {n.isPro ? "Master" : "Topic"}
-                  </span>
+                  <img
+                    src={n.coverImageUrl}
+                    alt=""
+                    loading="lazy"
+                    draggable={false}
+                    className="absolute inset-0 h-full w-full select-none object-cover"
+                  />
                 )}
               </div>
               <p className="mt-2 truncate text-sm font-semibold">{n.title}</p>
               <div className="flex items-center justify-between text-[11px] text-muted-foreground gap-2">
   <span className="truncate">{n.tag}</span>
   <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-accent-amber font-mono">
-    {n.division}
+    {n.isFree ? "Free" : `₹${n.price}`}
   </span>
 </div>
 
