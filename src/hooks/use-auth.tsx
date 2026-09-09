@@ -92,12 +92,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         if (typeof window === "undefined") return;
         const { hash, search, pathname } = window.location;
+        // The dedicated callback screen owns this flow — don't strip its URL.
+        if (pathname === "/auth/callback") return;
         const params = new URLSearchParams(
           (hash.startsWith("#") ? hash.slice(1) : hash) || search.slice(1),
         );
         const isRecovery = params.get("type") === "recovery";
         const hasToken =
-          params.has("access_token") || params.has("code") || params.has("error_description");
+          params.has("access_token") ||
+          params.has("code") ||
+          params.has("token_hash") ||
+          params.has("error_description");
         if (!hasToken) return;
 
         if (isRecovery) {
@@ -106,12 +111,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           return;
         }
-        window.history.replaceState({}, "", pathname === "/" ? "/home" : pathname);
-        if (pathname === "/") window.location.replace("/home");
+        // Hand the confirmation link off to the callback screen, which signs
+        // the user in before sending them to the app.
+        window.location.replace(`/auth/callback${search || ""}${hash || ""}`);
       } catch (err) {
         console.error("[auth] callback handling failed", err);
       }
     };
+
 
     settleAuthCallback();
 
