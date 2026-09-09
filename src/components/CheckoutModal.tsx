@@ -8,14 +8,35 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { simulatePayment } from "@/lib/subscription-store";
+import { createRazorpayOrder, verifyRazorpayPayment } from "@/lib/razorpay.functions";
 import {
   Check,
   Copy,
+  CreditCard,
   ExternalLink,
   QrCode,
   Smartphone,
   Zap,
 } from "lucide-react";
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
+function loadRazorpayScript(): Promise<boolean> {
+  if (typeof window === "undefined") return Promise.resolve(false);
+  if (window.Razorpay) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
+
 
 export const PASS = {
   name: "Discipline Hub Pass",
@@ -85,7 +106,9 @@ export function CheckoutModal({
   const [processing, setProcessing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [qrFailed, setQrFailed] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
   const [done, setDone] = useState<{ expiresAt: number | null; reference: string } | null>(null);
+
 
   const isPass = item.kind === "pass";
   const deepLink = useMemo(() => upiDeepLink(item.price, item.title), [item.price, item.title]);
@@ -95,7 +118,9 @@ export function CheckoutModal({
     setUtr("");
     setProcessing(false);
     setCopied(false);
+    setPayError(null);
     setDone(null);
+
   }, []);
 
   const activate = useCallback(
@@ -118,11 +143,62 @@ export function CheckoutModal({
     [isPass, onActivated, previewOnly],
   );
 
+  const payWithRazorpay = useCallback(async () => {
+    setPayError(null);
+    if (previewOnly) {
+      activate("PREVIEW-RZP");
+      return;
+    }
+    setProcessing(true);
+    try {
+      const ok = await loadRazorpayScript();
+      if (!ok || !window.Razorpay) throw new Error("Could not load the payment window.");
+      const order = await createRazorpayOrder({
+        data: { amount: item.price, label: item.title },
+      });
+      setProcessing(false);
+      const rzp = new window.Razorpay({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        order_id: order.orderId,
+        name: UPI_PAYEE_NAME,
+        description: item.title,
+        theme: { color: "#f59e0b" },
+        modal: { ondismiss: () => setProcessing(false) },
+        handler: (resp: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          void (async () => {
+            setProcessing(true);
+            const result = await verifyRazorpayPayment({
+              data: {
+                orderId: resp.razorpay_order_id,
+                paymentId: resp.razorpay_payment_id,
+                signature: resp.razorpay_signature,
+              },
+            });
+            setProcessing(false);
+            if (result.valid) activate(resp.razorpay_payment_id);
+            else setPayError("We could not verify that payment. Please contact support.");
+          })();
+        },
+      });
+      rzp.open();
+    } catch (err) {
+      setProcessing(false);
+      setPayError(err instanceof Error ? err.message : "Payment could not be started.");
+    }
+  }, [activate, item.price, item.title, previewOnly]);
+
   const copyUpi = useCallback(() => {
     void navigator.clipboard?.writeText(UPI_ID);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
   }, []);
+
 
   const close = useCallback(() => {
     onOpenChange(false);
@@ -199,6 +275,25 @@ export function CheckoutModal({
               </p>
             )}
 
+            <button
+              type="button"
+              disabled={processing}
+              onClick={() => void payWithRazorpay()}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3.5 text-sm font-black uppercase tracking-widest text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-110 disabled:opacity-50"
+            >
+              <CreditCard className="h-4 w-4" />
+              {processing ? "Opening…" : `Pay Securely · ₹${item.price}`}
+            </button>
+            <p className="mt-2 text-center text-[10px] uppercase tracking-widest text-muted-foreground/70">
+              Card · Netbanking · Wallet · UPI
+            </p>
+
+            {payError && (
+              <p className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-[11px] font-bold text-destructive">
+                {payError}
+              </p>
+            )}
+
             <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-background/50 p-1">
               <TabBtn active={tab === "upi"} onClick={() => setTab("upi")} icon={QrCode}>
                 Pay via UPI / QR
@@ -207,6 +302,7 @@ export function CheckoutModal({
                 Manual Verification
               </TabBtn>
             </div>
+
 
             {tab === "upi" ? (
               <div className="mt-5">
