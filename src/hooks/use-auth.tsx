@@ -68,12 +68,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
+      // `email` is no longer readable through the profiles table (it is private).
+      // The signed-in user's own email comes from their session instead.
       const { data } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, full_name, avatar_url, created_at")
         .eq("id", userId)
         .maybeSingle();
-      setProfile((data as Profile | null) ?? null);
+      setProfile(data ? ({ ...data, email: null } as Profile) : null);
     } catch (err) {
       console.error("[auth] failed to load profile", err);
       setProfile(null);
