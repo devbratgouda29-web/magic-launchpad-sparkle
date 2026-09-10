@@ -84,7 +84,7 @@ function NoteDetailPage() {
     if (error) throw new Error(error.message);
   };
 
-  /** Simulated checkout: records the purchase, then opens the reader. */
+  /** Paid packs go through Razorpay; free packs unlock straight away. */
   const buyNow = async () => {
     if (!requireAuth("generic")) return;
     if (price > 0) {
@@ -94,7 +94,6 @@ function NoteDetailPage() {
     setBuying(true);
     try {
       await recordUnlock();
-      if (price > 0) toast.success("Payment confirmed — pack unlocked!");
       setOwned(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Purchase failed");
@@ -103,13 +102,15 @@ function NoteDetailPage() {
     }
   };
 
-  /** Free / admin / owned "Read Now": ensure a library record, then open. */
+  /** Free / admin / owned "Read Now": never creates a purchase for a paid pack. */
   const readNow = async () => {
     if (!requireAuth("generic")) return;
-    try {
-      await recordUnlock();
-    } catch {
-      /* reading still works even if the library record fails */
+    if (price === 0) {
+      try {
+        await recordUnlock();
+      } catch {
+        /* reading still works even if the library record fails */
+      }
     }
     void navigate({ to: "/reader/$noteId", params: { noteId }, search: { mode: "standard" } });
   };
