@@ -133,7 +133,23 @@ export function CheckoutModal({
         image: BRAND_LOGO,
         theme: { color: BRAND_COLOR },
         notes: { item: item.title },
-        modal: { ondismiss: () => setProcessing(false) },
+        // Show every standard method inside the Razorpay popup:
+        // UPI apps + dynamic UPI QR, cards, netbanking and wallets.
+        method: { upi: true, card: true, netbanking: true, wallet: true, emi: true, paylater: true },
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: "Pay via UPI (GPay / PhonePe / Paytm / QR)",
+                instruments: [{ method: "upi", flows: ["intent", "qr", "collect"] }],
+              },
+            },
+            sequence: ["block.upi", "method.card", "method.netbanking", "method.wallet"],
+            preferences: { show_default_blocks: true },
+          },
+        },
+        // Closing the popup without paying must leave everything locked.
+        modal: { ondismiss: () => setProcessing(false), confirm_close: true },
         handler: (resp: {
           razorpay_order_id: string;
           razorpay_payment_id: string;
@@ -142,6 +158,11 @@ export function CheckoutModal({
           void (async () => {
             setProcessing(true);
             try {
+              if (!resp?.razorpay_payment_id || !resp?.razorpay_signature) {
+                setProcessing(false);
+                setPayError("Payment was not completed. Nothing has been unlocked.");
+                return;
+              }
               const result = await verifyRazorpayPayment({
                 data: {
                   orderId: resp.razorpay_order_id,
@@ -149,7 +170,7 @@ export function CheckoutModal({
                   signature: resp.razorpay_signature,
                 },
               });
-              if (result.valid) await activate(resp.razorpay_payment_id);
+              if (result.valid && result.reference) await activate(result.reference);
               else {
                 setProcessing(false);
                 setPayError("We could not verify that payment. Please contact support.");
