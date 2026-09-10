@@ -51,6 +51,12 @@ export const PASS = {
   ],
 };
 
+export const BRAND_NAME = "from The Last Bench";
+export const BRAND_DESCRIPTION = "Study Notes Purchase";
+export const BRAND_LOGO =
+  "https://nrzwxgiljnotoizhblhc.supabase.co/storage/v1/object/public/Logo/1786358552177.png";
+export const BRAND_COLOR = "#8B0000";
+
 export const UPI_ID = "6376104233-sa01@axl";
 export const UPI_PAYEE_NAME = "fromTheLastBench";
 export const QR_IMAGE = "/assets/phonepe-qr.png";
@@ -162,9 +168,10 @@ export function CheckoutModal({
         amount: order.amount,
         currency: order.currency,
         order_id: order.orderId,
-        name: UPI_PAYEE_NAME,
-        description: item.title,
-        theme: { color: "#f59e0b" },
+        name: BRAND_NAME,
+        description: isPass ? item.title : BRAND_DESCRIPTION,
+        image: BRAND_LOGO,
+        theme: { color: BRAND_COLOR },
         modal: { ondismiss: () => setProcessing(false) },
         handler: (resp: {
           razorpay_order_id: string;
