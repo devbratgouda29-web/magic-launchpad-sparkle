@@ -55,17 +55,34 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
     setTrialDays(
       createdAtMs ? accountTrialDaysRemaining(createdAtMs, now) : trialDaysRemaining(now),
     );
-    setPaidDays(paidDaysRemaining(now));
-    setActive(IS_TESTING_MODE || isAdmin === true || trialLeft > 0 || isPaidActive(now));
+    // Signed-in users: the paid window is whatever the backend has verified.
+    const serverActive = !!serverUntil && serverUntil > now;
+    const serverDays = serverActive
+      ? Math.ceil((serverUntil! - now) / (24 * 60 * 60 * 1000))
+      : 0;
+    setPaidDays(user ? serverDays : paidDaysRemaining(now));
+    setActive(
+      IS_TESTING_MODE ||
+        isAdmin === true ||
+        trialLeft > 0 ||
+        (user ? serverActive : isPaidActive(now)),
+    );
   };
 
   useEffect(() => {
     // Wait for the admin role check before deciding — otherwise the paywall
     // modal would flash for admins on first paint.
     if (authLoading || adminChecking) return;
-    refresh();
-    const id = window.setInterval(refresh, 60_000);
-    return () => window.clearInterval(id);
+    let cancelled = false;
+    void (async () => {
+      const until = await loadServerPass();
+      if (!cancelled) refresh(until);
+    })();
+    const id = window.setInterval(() => refresh(), 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, adminChecking, isAdmin, user?.id]);
 
