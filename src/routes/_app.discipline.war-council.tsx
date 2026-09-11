@@ -506,7 +506,10 @@ function CellPanel({
                   <div className="mt-1 flex gap-3 text-[10px] text-muted-foreground">
                     <span>{Math.round(m.daily.focusMinutes / 6) / 10}h focus</span>
                     <span>
-                      {m.daily.tasksDone}/{m.daily.tasksTotal} tasks
+                      {m.userTag === meTag
+                        ? `${myTaskCounts.done}/${myTaskCounts.total}`
+                        : `${m.daily.tasksDone}/${m.daily.tasksTotal}`}{" "}
+                      tasks
                     </span>
                   </div>
                   <p className={"mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] " + (weeklyTier?.accent ?? "text-muted-foreground")}>
