@@ -31,7 +31,7 @@ function loadRazorpayScript(): Promise<boolean> {
 
 export const PASS = {
   name: "Discipline Hub Pass",
-  price: 15,
+  price: 25,
   unit: "/ 30 Days",
   billing: "Billed monthly · Rolling 30-day access",
   features: [
