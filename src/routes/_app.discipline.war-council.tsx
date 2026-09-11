@@ -26,12 +26,13 @@ import {
   ClipboardPaste,
   CheckCircle2,
   ArrowLeft,
+  Eye,
+  Circle,
 } from "lucide-react";
 import {
   addSimulatedAlly,
   activeDownVotes,
   castExileVote,
-  dissolveCouncil,
   forgeCouncil,
   getCouncil,
   getMe,
@@ -62,7 +63,12 @@ import {
   memberWeeklyHours,
 } from "@/lib/weekly-badge";
 import { getAllItems } from "@/lib/revision-engine";
-import { readGhostCounts } from "@/lib/report-data";
+import {
+  readGhostCounts,
+  readTodayGhostList,
+  readTodayTaskList,
+  type InspectTask,
+} from "@/lib/report-data";
 import { dateKey } from "@/lib/weekly-badge";
 
 // Ghost tasks completed / assigned today for a council member. The current
@@ -405,16 +411,6 @@ function CouncilView({
             className="flex items-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs text-destructive"
           >
             <LogOut className="h-3 w-3" /> Leave
-          </button>
-        )}
-        {me?.isLeader && (
-          <button
-            onClick={() => {
-              if (confirm("Dissolve council permanently?")) dissolveCouncil();
-            }}
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground"
-          >
-            Dissolve
           </button>
         )}
       </div>
