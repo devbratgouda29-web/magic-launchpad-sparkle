@@ -9,6 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { simulatePayment } from "@/lib/subscription-store";
 import { createRazorpayOrder, verifyRazorpayPayment } from "@/lib/razorpay.functions";
+import { activatePassSubscription } from "@/lib/subscription.functions";
 import { Check, CreditCard, ShieldCheck, Zap } from "lucide-react";
 
 declare global {
