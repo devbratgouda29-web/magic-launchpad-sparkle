@@ -20,6 +20,10 @@ export const createRazorpayOrder = createServerFn({ method: "POST" })
     const keyId = process.env["RAZORPAY_KEY_ID"];
     const keySecret = process.env["RAZORPAY_KEY_SECRET"];
     if (!keyId || !keySecret) throw new Error("Razorpay is not configured");
+    // Live mode only: refuse to fall back to test credentials.
+    if (!keyId.startsWith("rzp_live_")) {
+      throw new Error("Payments are configured with a test key. Live mode is required.");
+    }
 
     const res = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
