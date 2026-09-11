@@ -441,6 +441,14 @@ function CellPanel({
 }) {
   const [allyName, setAllyName] = useState("");
   const slots = MAX_MEMBERS - council.members.length;
+  // Live task counts for the signed-in cadet come from today's mission lockdown,
+  // not the stored daily snapshot (which can lag at 0/0).
+  const meTag = getMe().userTag;
+  const myTasks = readTodayTaskList();
+  const myTaskCounts = {
+    done: myTasks.filter((t) => t.done).length,
+    total: myTasks.length,
+  };
   return (
     <div className="flex flex-col gap-3">
       <ul className="grid grid-cols-1 gap-2">
