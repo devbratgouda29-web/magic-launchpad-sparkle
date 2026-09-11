@@ -441,6 +441,14 @@ function CellPanel({
 }) {
   const [allyName, setAllyName] = useState("");
   const slots = MAX_MEMBERS - council.members.length;
+  // Live task counts for the signed-in cadet come from today's mission lockdown,
+  // not the stored daily snapshot (which can lag at 0/0).
+  const meTag = getMe().userTag;
+  const myTasks = readTodayTaskList();
+  const myTaskCounts = {
+    done: myTasks.filter((t) => t.done).length,
+    total: myTasks.length,
+  };
   return (
     <div className="flex flex-col gap-3">
       <ul className="grid grid-cols-1 gap-2">
@@ -499,7 +507,10 @@ function CellPanel({
                   <div className="mt-1 flex gap-3 text-[10px] text-muted-foreground">
                     <span>{Math.round(m.daily.focusMinutes / 6) / 10}h focus</span>
                     <span>
-                      {m.daily.tasksDone}/{m.daily.tasksTotal} tasks
+                      {m.userTag === meTag
+                        ? `${myTaskCounts.done}/${myTaskCounts.total}`
+                        : `${m.daily.tasksDone}/${m.daily.tasksTotal}`}{" "}
+                      tasks
                     </span>
                   </div>
                   <p className={"mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] " + (weeklyTier?.accent ?? "text-muted-foreground")}>
@@ -667,7 +678,11 @@ function ArmoryModal({
           />
           <Stat
             label="Tasks"
-            value={member.daily.tasksDone + " / " + member.daily.tasksTotal}
+            value={
+              isMe
+                ? taskList.filter((t) => t.done).length + " / " + taskList.length
+                : member.daily.tasksDone + " / " + member.daily.tasksTotal
+            }
             onInspect={() => setInspect("tasks")}
             inspectLabel={`Inspect ${member.name}'s tasks`}
           />
