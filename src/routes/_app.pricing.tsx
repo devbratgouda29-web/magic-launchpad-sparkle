@@ -10,12 +10,12 @@ export const Route = createFileRoute("/_app/pricing")({
       {
         name: "description",
         content:
-          "Discipline Hub Pass — ₹15 for 30 days. Unlock every note, shield, and mission.",
+          "Discipline Hub Pass — ₹25 for 30 days. Unlock every note, shield, and mission.",
       },
       { property: "og:title", content: "Pricing — From The Last Bench" },
       {
         property: "og:description",
-        content: "Discipline Hub Pass — ₹15 for 30 days. Unlock every note, shield, and mission.",
+        content: "Discipline Hub Pass — ₹25 for 30 days. Unlock every note, shield, and mission.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
