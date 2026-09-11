@@ -667,7 +667,11 @@ function ArmoryModal({
           />
           <Stat
             label="Tasks"
-            value={member.daily.tasksDone + " / " + member.daily.tasksTotal}
+            value={
+              isMe
+                ? taskList.filter((t) => t.done).length + " / " + taskList.length
+                : member.daily.tasksDone + " / " + member.daily.tasksTotal
+            }
             onInspect={() => setInspect("tasks")}
             inspectLabel={`Inspect ${member.name}'s tasks`}
           />
