@@ -26,12 +26,13 @@ import {
   ClipboardPaste,
   CheckCircle2,
   ArrowLeft,
+  Eye,
+  Circle,
 } from "lucide-react";
 import {
   addSimulatedAlly,
   activeDownVotes,
   castExileVote,
-  dissolveCouncil,
   forgeCouncil,
   getCouncil,
   getMe,
@@ -62,7 +63,12 @@ import {
   memberWeeklyHours,
 } from "@/lib/weekly-badge";
 import { getAllItems } from "@/lib/revision-engine";
-import { readGhostCounts } from "@/lib/report-data";
+import {
+  readGhostCounts,
+  readTodayGhostList,
+  readTodayTaskList,
+  type InspectTask,
+} from "@/lib/report-data";
 import { dateKey } from "@/lib/weekly-badge";
 
 // Ghost tasks completed / assigned today for a council member. The current
@@ -407,16 +413,6 @@ function CouncilView({
             <LogOut className="h-3 w-3" /> Leave
           </button>
         )}
-        {me?.isLeader && (
-          <button
-            onClick={() => {
-              if (confirm("Dissolve council permanently?")) dissolveCouncil();
-            }}
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground"
-          >
-            Dissolve
-          </button>
-        )}
       </div>
 
       {openMember && (
@@ -599,6 +595,27 @@ function ArmoryModal({
         loops: member.daily.coreLoops?.[chapter] ?? 0,
       }));
 
+  const [inspect, setInspect] = useState<"tasks" | "ghosts" | null>(null);
+
+  // Live per-task detail. The signed-in cadet reads their own mission diary
+  // and recall queue; allies expose the daily counts they share with the cell.
+  const taskList: InspectTask[] = isMe
+    ? readTodayTaskList()
+    : Array.from({ length: member.daily.tasksTotal }, (_, i) => ({
+        title: `Mission ${i + 1}`,
+        done: i < member.daily.tasksDone,
+      }));
+  const ghostList: InspectTask[] = isMe
+    ? readTodayGhostList()
+    : (() => {
+        const g = ghostStats(member, isMe);
+        const names = Object.keys(member.daily.chapterCores ?? {});
+        return Array.from({ length: g.total }, (_, i) => ({
+          title: names[i] ?? `Obligatory Recall ${i + 1}`,
+          done: i < g.done,
+        }));
+      })();
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
@@ -651,6 +668,8 @@ function ArmoryModal({
           <Stat
             label="Tasks"
             value={member.daily.tasksDone + " / " + member.daily.tasksTotal}
+            onInspect={() => setInspect("tasks")}
+            inspectLabel={`Inspect ${member.name}'s tasks`}
           />
           <Stat
             label="Ghost Tasks"
@@ -658,8 +677,18 @@ function ArmoryModal({
               const g = ghostStats(member, isMe);
               return g.done + " / " + g.total;
             })()}
+            onInspect={() => setInspect("ghosts")}
+            inspectLabel={`Inspect ${member.name}'s ghost tasks`}
           />
         </div>
+        {inspect && (
+          <TaskInspectModal
+            title={inspect === "tasks" ? "Today's Tasks" : "Today's Ghost Tasks"}
+            memberName={member.name}
+            tasks={inspect === "tasks" ? taskList : ghostList}
+            onClose={() => setInspect(null)}
+          />
+        )}
         <div className="border-t border-border p-4">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
@@ -723,13 +752,106 @@ function ArmoryModal({
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  onInspect,
+  inspectLabel,
+}: {
+  label: string;
+  value: string;
+  onInspect?: () => void;
+  inspectLabel?: string;
+}) {
   return (
-    <div className="rounded-xl border border-border bg-background p-3">
+    <div className="relative rounded-xl border border-border bg-background p-3">
       <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
         {label}
       </p>
       <p className="mt-0.5 text-sm font-semibold">{value}</p>
+      {onInspect && (
+        <button
+          type="button"
+          onClick={onInspect}
+          aria-label={inspectLabel ?? `Inspect ${label}`}
+          className="absolute bottom-2 right-2 grid h-7 w-7 place-items-center rounded-full border border-border text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary"
+        >
+          <Eye className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TaskInspectModal({
+  title,
+  memberName,
+  tasks,
+  onClose,
+}: {
+  title: string;
+  memberName: string;
+  tasks: InspectTask[];
+  onClose: () => void;
+}) {
+  const done = tasks.filter((t) => t.done).length;
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm overflow-hidden rounded-t-3xl border border-border bg-card sm:rounded-3xl"
+      >
+        <div className="flex items-center justify-between border-b border-border p-4">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              {memberName}
+            </p>
+            <h4 className="text-base font-bold">{title}</h4>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-primary">
+              {done}/{tasks.length}
+            </span>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded-full p-1 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+        <ul className="flex max-h-[55vh] flex-col gap-2 overflow-y-auto p-4">
+          {tasks.map((t, i) => (
+            <li
+              key={`${t.title}-${i}`}
+              className="flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3"
+            >
+              {t.done ? (
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+              ) : (
+                <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />
+              )}
+              <span
+                className={
+                  "min-w-0 flex-1 truncate text-sm " +
+                  (t.done ? "text-muted-foreground line-through" : "font-semibold")
+                }
+              >
+                {t.title}
+              </span>
+            </li>
+          ))}
+          {tasks.length === 0 && (
+            <li className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+              Nothing logged for today yet.
+            </li>
+          )}
+        </ul>
+      </div>
     </div>
   );
 }

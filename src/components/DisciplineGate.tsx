@@ -12,6 +12,7 @@ import { IS_TESTING_MODE } from "@/lib/testing-mode";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { CheckoutModal, PASS } from "@/components/CheckoutModal";
+import { getMySubscription } from "@/lib/subscription.functions";
 
 
 
@@ -25,9 +26,23 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [adminPreview, setAdminPreview] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
+  const [serverPaidUntil, setServerPaidUntil] = useState<number | null>(null);
 
+  /** Server-verified pass expiry for the signed-in user. */
+  const loadServerPass = async (): Promise<number | null> => {
+    if (!user) return null;
+    try {
+      const { expiresAt } = await getMySubscription();
+      const ms = expiresAt ? Date.parse(expiresAt) : NaN;
+      const value = Number.isFinite(ms) ? ms : null;
+      setServerPaidUntil(value);
+      return value;
+    } catch {
+      return null;
+    }
+  };
 
-  const refresh = () => {
+  const refresh = (serverUntil: number | null = serverPaidUntil) => {
     const now = Date.now();
     // Signed-in users: the 7-day trial is anchored to the account's
     // created_at so it behaves identically on every device. Signed-out
@@ -40,17 +55,34 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
     setTrialDays(
       createdAtMs ? accountTrialDaysRemaining(createdAtMs, now) : trialDaysRemaining(now),
     );
-    setPaidDays(paidDaysRemaining(now));
-    setActive(IS_TESTING_MODE || isAdmin === true || trialLeft > 0 || isPaidActive(now));
+    // Signed-in users: the paid window is whatever the backend has verified.
+    const serverActive = !!serverUntil && serverUntil > now;
+    const serverDays = serverActive
+      ? Math.ceil((serverUntil! - now) / (24 * 60 * 60 * 1000))
+      : 0;
+    setPaidDays(user ? serverDays : paidDaysRemaining(now));
+    setActive(
+      IS_TESTING_MODE ||
+        isAdmin === true ||
+        trialLeft > 0 ||
+        (user ? serverActive : isPaidActive(now)),
+    );
   };
 
   useEffect(() => {
     // Wait for the admin role check before deciding — otherwise the paywall
     // modal would flash for admins on first paint.
     if (authLoading || adminChecking) return;
-    refresh();
-    const id = window.setInterval(refresh, 60_000);
-    return () => window.clearInterval(id);
+    let cancelled = false;
+    void (async () => {
+      const until = await loadServerPass();
+      if (!cancelled) refresh(until);
+    })();
+    const id = window.setInterval(() => refresh(), 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, adminChecking, isAdmin, user?.id]);
 
@@ -121,8 +153,9 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
         previewOnly={preview}
-        onActivated={() => {
-          refresh();
+        onActivated={async () => {
+          const until = await loadServerPass();
+          refresh(until);
           setFlash("Payment confirmed. Welcome back, Cadet.");
           setTimeout(() => setFlash(null), 2400);
         }}

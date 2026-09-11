@@ -172,3 +172,48 @@ export function buildLedgerRows(
     };
   });
 }
+
+export type InspectTask = { title: string; done: boolean };
+
+/** Today's self-assigned mission tasks (titles + completion). */
+export function readTodayTaskList(): InspectTask[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem("ftlb.mission.v1");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as {
+      active?: { date?: string; tasks?: { text: string; done: boolean }[] } | null;
+      history?: { date?: string; tasks?: { text: string; done: boolean }[] }[];
+    };
+    const today = dateKey(new Date());
+    const days = [parsed?.active, ...(Array.isArray(parsed?.history) ? parsed.history : [])];
+    const out: InspectTask[] = [];
+    for (const d of days) {
+      if (!d || d.date !== today) continue;
+      for (const t of d.tasks ?? []) out.push({ title: t.text, done: !!t.done });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Today's ghost tasks — cleared recall sessions plus still-pending ones. */
+export function readTodayGhostList(): InspectTask[] {
+  if (typeof window === "undefined") return [];
+  const out: InspectTask[] = [];
+  const today = dateKey(new Date());
+  try {
+    for (const log of loadRevisionLogs()) {
+      if (log.date === today) out.push({ title: log.chapterName, done: true });
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    for (const g of getGhostTasks()) out.push({ title: g.chapterName, done: false });
+  } catch {
+    /* ignore */
+  }
+  return out;
+}

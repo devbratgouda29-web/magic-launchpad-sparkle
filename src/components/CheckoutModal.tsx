@@ -9,6 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { simulatePayment } from "@/lib/subscription-store";
 import { createRazorpayOrder, verifyRazorpayPayment } from "@/lib/razorpay.functions";
+import { activatePassSubscription } from "@/lib/subscription.functions";
 import { Check, CreditCard, ShieldCheck, Zap } from "lucide-react";
 
 declare global {
@@ -31,7 +32,7 @@ function loadRazorpayScript(): Promise<boolean> {
 
 export const PASS = {
   name: "Discipline Hub Pass",
-  price: 15,
+  price: 25,
   unit: "/ 30 Days",
   billing: "Billed monthly · Rolling 30-day access",
   features: [
@@ -96,10 +97,13 @@ export function CheckoutModal({
   }, []);
 
   const activate = useCallback(
-    async (ref: string) => {
+    async (ref: string, serverExpiresAt?: number | null) => {
       let expiresAt: number | null = null;
       if (isPass) {
-        expiresAt = previewOnly ? Date.now() + 30 * 24 * 60 * 60 * 1000 : simulatePayment();
+        expiresAt = previewOnly
+          ? Date.now() + 30 * 24 * 60 * 60 * 1000
+          : (serverExpiresAt ?? simulatePayment());
+        if (!previewOnly) simulatePayment();
       }
       if (!previewOnly) await onActivated?.();
       setDone({ expiresAt, reference: ref });
@@ -170,8 +174,24 @@ export function CheckoutModal({
                   signature: resp.razorpay_signature,
                 },
               });
-              if (result.valid && result.reference) await activate(result.reference);
-              else {
+              if (result.valid && result.reference) {
+                let serverExpiresAt: number | null = null;
+                if (isPass) {
+                  try {
+                    const sub = await activatePassSubscription({
+                      data: {
+                        orderId: resp.razorpay_order_id,
+                        paymentId: resp.razorpay_payment_id,
+                        signature: resp.razorpay_signature,
+                      },
+                    });
+                    serverExpiresAt = Date.parse(sub.expiresAt);
+                  } catch {
+                    /* signed-out edge case: fall back to the local pass clock */
+                  }
+                }
+                await activate(result.reference, serverExpiresAt);
+              } else {
                 setProcessing(false);
                 setPayError("We could not verify that payment. Please contact support.");
               }
@@ -187,7 +207,7 @@ export function CheckoutModal({
       setProcessing(false);
       setPayError(err instanceof Error ? err.message : "Payment could not be started.");
     }
-  }, [activate, item.price, item.title, previewOnly]);
+  }, [activate, isPass, item.price, item.title, previewOnly]);
 
   const close = useCallback(() => {
     onOpenChange(false);
