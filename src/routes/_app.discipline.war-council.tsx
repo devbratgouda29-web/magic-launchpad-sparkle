@@ -332,13 +332,6 @@ function CouncilView({
   const [openMember, setOpenMember] = useState<Member | null>(null);
   const me = council.members.find((m) => m.userTag === meTag);
   const inCouncil = Boolean(me);
-  // Live task counts for the signed-in cadet come from today's mission lockdown,
-  // not the stored daily snapshot (which can lag at 0/0).
-  const myTasks = readTodayTaskList();
-  const myTaskCounts = {
-    done: myTasks.filter((t) => t.done).length,
-    total: myTasks.length,
-  };
 
   return (
     <div className="flex flex-col gap-4">
