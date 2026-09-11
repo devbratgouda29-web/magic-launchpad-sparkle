@@ -153,8 +153,9 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
         previewOnly={preview}
-        onActivated={() => {
-          refresh();
+        onActivated={async () => {
+          const until = await loadServerPass();
+          refresh(until);
           setFlash("Payment confirmed. Welcome back, Cadet.");
           setTimeout(() => setFlash(null), 2400);
         }}
