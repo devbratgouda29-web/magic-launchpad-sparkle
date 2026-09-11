@@ -7,6 +7,8 @@ import { checkStreakStatus } from "@/lib/revision-engine";
 import { isQuietHours } from "@/lib/notifications";
 import { playShatter } from "@/lib/fracture-sfx";
 import { prefetchPdfEngine } from "@/lib/pdf-engine";
+import { preloadStaticAssets } from "@/lib/asset-preload";
+import { registerServiceWorker } from "@/lib/register-sw";
 
 export const Route = createFileRoute("/_app")({
   component: AppShell,
