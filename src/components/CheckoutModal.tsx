@@ -173,8 +173,24 @@ export function CheckoutModal({
                   signature: resp.razorpay_signature,
                 },
               });
-              if (result.valid && result.reference) await activate(result.reference);
-              else {
+              if (result.valid && result.reference) {
+                let serverExpiresAt: number | null = null;
+                if (isPass) {
+                  try {
+                    const sub = await activatePassSubscription({
+                      data: {
+                        orderId: resp.razorpay_order_id,
+                        paymentId: resp.razorpay_payment_id,
+                        signature: resp.razorpay_signature,
+                      },
+                    });
+                    serverExpiresAt = Date.parse(sub.expiresAt);
+                  } catch {
+                    /* signed-out edge case: fall back to the local pass clock */
+                  }
+                }
+                await activate(result.reference, serverExpiresAt);
+              } else {
                 setProcessing(false);
                 setPayError("We could not verify that payment. Please contact support.");
               }
