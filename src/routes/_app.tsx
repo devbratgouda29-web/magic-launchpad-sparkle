@@ -46,6 +46,9 @@ function AppShell() {
     });
     // Warm the pdf.js chunk + worker so the first note opens instantly.
     prefetchPdfEngine();
+    // Hold badges, shields and alarm sounds in local memory + offline cache.
+    preloadStaticAssets();
+    registerServiceWorker();
   }, []);
 
 
