@@ -96,10 +96,13 @@ export function CheckoutModal({
   }, []);
 
   const activate = useCallback(
-    async (ref: string) => {
+    async (ref: string, serverExpiresAt?: number | null) => {
       let expiresAt: number | null = null;
       if (isPass) {
-        expiresAt = previewOnly ? Date.now() + 30 * 24 * 60 * 60 * 1000 : simulatePayment();
+        expiresAt = previewOnly
+          ? Date.now() + 30 * 24 * 60 * 60 * 1000
+          : (serverExpiresAt ?? simulatePayment());
+        if (!previewOnly) simulatePayment();
       }
       if (!previewOnly) await onActivated?.();
       setDone({ expiresAt, reference: ref });
