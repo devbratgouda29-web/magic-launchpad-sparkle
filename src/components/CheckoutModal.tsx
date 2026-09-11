@@ -207,7 +207,7 @@ export function CheckoutModal({
       setProcessing(false);
       setPayError(err instanceof Error ? err.message : "Payment could not be started.");
     }
-  }, [activate, item.price, item.title, previewOnly]);
+  }, [activate, isPass, item.price, item.title, previewOnly]);
 
   const close = useCallback(() => {
     onOpenChange(false);
