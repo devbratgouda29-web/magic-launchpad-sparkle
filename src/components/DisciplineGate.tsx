@@ -12,6 +12,7 @@ import { IS_TESTING_MODE } from "@/lib/testing-mode";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { CheckoutModal, PASS } from "@/components/CheckoutModal";
+import { getMySubscription } from "@/lib/subscription.functions";
 
 
 
@@ -25,9 +26,23 @@ export function DisciplineGate({ children }: { children: ReactNode }) {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [adminPreview, setAdminPreview] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
+  const [serverPaidUntil, setServerPaidUntil] = useState<number | null>(null);
 
+  /** Server-verified pass expiry for the signed-in user. */
+  const loadServerPass = async (): Promise<number | null> => {
+    if (!user) return null;
+    try {
+      const { expiresAt } = await getMySubscription();
+      const ms = expiresAt ? Date.parse(expiresAt) : NaN;
+      const value = Number.isFinite(ms) ? ms : null;
+      setServerPaidUntil(value);
+      return value;
+    } catch {
+      return null;
+    }
+  };
 
-  const refresh = () => {
+  const refresh = (serverUntil: number | null = serverPaidUntil) => {
     const now = Date.now();
     // Signed-in users: the 7-day trial is anchored to the account's
     // created_at so it behaves identically on every device. Signed-out
