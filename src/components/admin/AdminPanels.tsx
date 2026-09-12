@@ -200,6 +200,29 @@ export function UserManagementCard() {
               </button>
             </div>
           ))}
+          {totalPages > 1 && (
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-full bg-background px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ring-1 ring-border disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <span className="text-[11px] text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="rounded-full bg-background px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ring-1 ring-border disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>
