@@ -105,6 +105,9 @@ export function UserManagementCard() {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const PER_PAGE = 10;
 
   const load = useCallback(async () => {
     try {
