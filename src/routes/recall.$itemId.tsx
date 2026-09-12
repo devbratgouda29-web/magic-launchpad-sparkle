@@ -19,7 +19,6 @@ import {
   ensureSession,
   markCompleted,
   setPlaying as setSessionPlaying,
-  setRemaining as writeRemaining,
   subscribe as subscribeSession,
   type RecallSession,
 } from "@/lib/recall-session";
