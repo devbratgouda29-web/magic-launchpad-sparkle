@@ -139,17 +139,40 @@ export function UserManagementCard() {
   };
 
 
+  const q = query.trim().toLowerCase();
+  const filtered = (users ?? []).filter(
+    (u) =>
+      !q ||
+      (u.full_name ?? "").toLowerCase().includes(q) ||
+      (u.email ?? "").toLowerCase().includes(q),
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const pageUsers = filtered.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
+
   return (
     <section className={card}>
       <h2 className={heading}>
         <Users className="h-4 w-4" /> User management ({users?.length ?? 0})
       </h2>
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setPage(1);
+        }}
+        placeholder="Search by name or email…"
+        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent-amber"
+      />
       {error && <p className="text-xs text-destructive">{error}</p>}
       {!users ? (
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      ) : filtered.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No users match that search.</p>
       ) : (
-        <div className="flex max-h-96 flex-col gap-1.5 overflow-auto">
-          {users.map((u) => (
+        <div className="flex flex-col gap-1.5">
+          {pageUsers.map((u) => (
             <div
               key={u.id}
               className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2"
