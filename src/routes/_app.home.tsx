@@ -292,15 +292,6 @@ function HomePage() {
                 </li>
               ))}
             </ul>
-            <button
-              type="button"
-              onClick={() => {
-                fractured.forEach((f) => restoreItem(f.id, "easy"));
-              }}
-              className="mt-3 w-full rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300/90 hover:bg-amber-400/20"
-            >
-              [ Dev Pass: Bypass Lockdown ]
-            </button>
           </div>
         </section>
       )}

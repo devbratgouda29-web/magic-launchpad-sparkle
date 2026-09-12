@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   PurchaseAnalyticsCard,
-  ReviewModerationCard,
   TestingToolsCard,
   UserManagementCard,
 } from "@/components/admin/AdminPanels";
@@ -137,7 +136,6 @@ function AdminConsole() {
 
       <TestingToolsCard />
       <UserManagementCard />
-      <ReviewModerationCard />
       <PurchaseAnalyticsCard />
     </div>
   );

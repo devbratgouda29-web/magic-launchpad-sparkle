@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { BarChart3, Eye, EyeOff, FlaskConical, Loader2, ShieldCheck, Star, Users } from "lucide-react";
+import { BarChart3, FlaskConical, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 import {
   getPurchaseAnalytics,
-  listReviewsForModeration,
   listUsers,
-  setReviewHidden,
   setUserAdmin,
-  type AdminReview,
   type AdminUser,
   type PurchaseAnalytics,
 } from "@/lib/admin.functions";
@@ -105,6 +102,9 @@ export function UserManagementCard() {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const PER_PAGE = 10;
 
   const load = useCallback(async () => {
     try {
@@ -136,17 +136,40 @@ export function UserManagementCard() {
   };
 
 
+  const q = query.trim().toLowerCase();
+  const filtered = (users ?? []).filter(
+    (u) =>
+      !q ||
+      (u.full_name ?? "").toLowerCase().includes(q) ||
+      (u.email ?? "").toLowerCase().includes(q),
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const pageUsers = filtered.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
+
   return (
     <section className={card}>
       <h2 className={heading}>
         <Users className="h-4 w-4" /> User management ({users?.length ?? 0})
       </h2>
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setPage(1);
+        }}
+        placeholder="Search by name or email…"
+        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent-amber"
+      />
       {error && <p className="text-xs text-destructive">{error}</p>}
       {!users ? (
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      ) : filtered.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No users match that search.</p>
       ) : (
-        <div className="flex max-h-96 flex-col gap-1.5 overflow-auto">
-          {users.map((u) => (
+        <div className="flex flex-col gap-1.5">
+          {pageUsers.map((u) => (
             <div
               key={u.id}
               className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2"
@@ -174,97 +197,35 @@ export function UserManagementCard() {
               </button>
             </div>
           ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-/** 2b. Review moderation toggle. */
-export function ReviewModerationCard() {
-  const fetchReviews = useServerFn(listReviewsForModeration);
-  const toggleHidden = useServerFn(setReviewHidden);
-  const [reviews, setReviews] = useState<AdminReview[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setReviews(await fetchReviews());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load reviews");
-    }
-  }, [fetchReviews]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const flip = async (r: AdminReview) => {
-    setBusy(r.id);
-    try {
-      await toggleHidden({ data: { reviewId: r.id, hidden: !r.hidden } });
-      setReviews((prev) =>
-        (prev ?? []).map((x) => (x.id === r.id ? { ...x, hidden: !x.hidden } : x)),
-      );
-      toast.success(r.hidden ? "Review published" : "Review hidden");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Update failed");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  return (
-    <section className={card}>
-      <h2 className={heading}>
-        <ShieldCheck className="h-4 w-4" /> Review moderation ({reviews?.length ?? 0})
-      </h2>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      {!reviews ? (
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-      ) : reviews.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No reviews yet.</p>
-      ) : (
-        <div className="flex max-h-96 flex-col gap-2 overflow-auto">
-          {reviews.map((r) => (
-            <div
-              key={r.id}
-              className={cn(
-                "flex items-start justify-between gap-3 rounded-lg px-3 py-2",
-                r.hidden ? "bg-destructive/10" : "bg-muted/30",
-              )}
-            >
-              <div className="min-w-0">
-                <p className="flex items-center gap-1 text-xs font-semibold">
-                  <Star className="h-3 w-3 fill-accent-amber text-accent-amber" />
-                  {r.rating} · {r.headline || "No headline"}
-                </p>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {r.author || "Anonymous"} on {r.note_title || "chapter"}
-                </p>
-                {r.comment && (
-                  <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
-                    {r.comment}
-                  </p>
-                )}
-              </div>
+          {totalPages > 1 && (
+            <div className="mt-2 flex items-center justify-between gap-2">
               <button
                 type="button"
-                disabled={busy === r.id}
-                onClick={() => void flip(r)}
-                className="flex shrink-0 items-center gap-1 rounded-full bg-background px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ring-1 ring-border hover:text-foreground"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-full bg-background px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ring-1 ring-border disabled:opacity-40"
               >
-                {r.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                {r.hidden ? "Hidden" : "Visible"}
+                Prev
+              </button>
+              <span className="text-[11px] text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="rounded-full bg-background px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ring-1 ring-border disabled:opacity-40"
+              >
+                Next
               </button>
             </div>
-          ))}
+          )}
         </div>
       )}
     </section>
   );
 }
+
 
 /** 4. Demo / testing tools — level badges, focus hours and library shortcuts. */
 export function TestingToolsCard() {

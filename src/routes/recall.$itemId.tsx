@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Ghost, Skull, Sparkles, Timer, Hammer, FastForward, BookOpen, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Ghost, Skull, Sparkles, Timer, Hammer, BookOpen, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   getItem,
@@ -19,7 +19,6 @@ import {
   ensureSession,
   markCompleted,
   setPlaying as setSessionPlaying,
-  setRemaining as writeRemaining,
   subscribe as subscribeSession,
   type RecallSession,
 } from "@/lib/recall-session";
@@ -84,18 +83,7 @@ function RecallPage() {
   // Auto-pause any running timer when leaving this screen.
   useEffect(() => () => setSessionPlaying(false), []);
 
-  const bypass = () => {
-    writeRemaining(0);
-    markCompleted();
-  };
 
-  // Listen for the global floating "Dev Pass" bypass so this locked screen
-  // also releases its own timer flag when the developer bypasses lockdown.
-  useEffect(() => {
-    const onBypass = () => bypass();
-    window.addEventListener("devpass:bypass", onBypass);
-    return () => window.removeEventListener("devpass:bypass", onBypass);
-  }, []);
 
   // Convert stored data: PDF into an inline-renderable blob: URL. Some
   // browsers refuse to render `data:application/pdf` inside an <iframe>
@@ -160,15 +148,6 @@ function RecallPage() {
 
   return (
     <div className={`relative min-h-screen overflow-hidden ${bgTint} px-5 pb-16 pt-8 text-foreground`}>
-      <button
-
-        type="button"
-        onClick={bypass}
-        className="absolute right-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300/90 backdrop-blur hover:bg-amber-400/25"
-        title="Dev bypass — instantly unlock this recall for testing"
-      >
-        <FastForward className="h-3 w-3" /> [ Dev Pass: Bypass Lockdown ]
-      </button>
 
       <div className="pointer-events-none absolute inset-0 opacity-40" style={{
         background:

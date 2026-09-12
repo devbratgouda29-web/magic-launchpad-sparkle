@@ -41,40 +41,6 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "critical", label: "Critical (1★ - 3★)" },
 ];
 
-// Fallback shown when the backend returns nothing (undefined/null/empty) or
-// errors out, so the reviews section can never render an empty black screen.
-const MOCK_REVIEWS: Review[] = [
-  {
-    id: "rev-1",
-    user_id: null,
-    rating: 5,
-    headline: "Super detailed visual diagrams!",
-    comment:
-      "The botany flowcharts saved me so much time during revision. Totally worth it.",
-    author_name: "Rahul S.",
-    author_city: "Kota",
-    created_at: new Date(Date.now() - 14 * 86_400_000).toISOString(),
-    verified: true,
-    helpful: 142,
-    unhelpful: 12,
-    myVote: null,
-  },
-  {
-    id: "rev-2",
-    user_id: null,
-    rating: 4,
-    headline: "Great concise notes",
-    comment: "Covered all important NCERT lines neatly. High-yield points highlighted.",
-    author_name: "Priya M.",
-    author_city: "Delhi",
-    created_at: new Date(Date.now() - 30 * 86_400_000).toISOString(),
-    verified: true,
-    helpful: 89,
-    unhelpful: 5,
-    myVote: null,
-  },
-];
-
 function timeAgo(iso: string) {
 
   const diff = Date.now() - new Date(iso).getTime();
@@ -132,7 +98,7 @@ export function ReviewsSection({ noteId }: Props) {
         > & { helpful_count?: number | null; unhelpful_count?: number | null })[];
 
         if (!list.length) {
-          setReviews(MOCK_REVIEWS);
+          setReviews([]);
           setLoading(false);
           return;
         }
@@ -181,11 +147,11 @@ export function ReviewsSection({ noteId }: Props) {
         });
 
 
-        setReviews(merged.length ? merged : MOCK_REVIEWS);
+        setReviews(merged);
       } catch (err) {
         // Never let a backend/network failure blank the page.
         console.error("[ReviewsSection] failed to load reviews", err);
-        setReviews(MOCK_REVIEWS);
+        setReviews([]);
       } finally {
         setLoading(false);
       }
@@ -218,7 +184,7 @@ export function ReviewsSection({ noteId }: Props) {
       } catch (err) {
         console.error("[ReviewsSection] init failed", err);
         if (active) {
-          setReviews(MOCK_REVIEWS);
+          setReviews([]);
           setLoading(false);
         }
       }
