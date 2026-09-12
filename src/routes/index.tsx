@@ -118,7 +118,7 @@ function SplashPage() {
           width={320}
           height={320}
           style={{ width: "100%", height: "auto", objectFit: "contain" }}
-          className="mx-auto block max-w-[220px] drop-shadow-xl sm:max-w-[320px]"
+          className="mx-auto block max-w-[288px] drop-shadow-xl sm:max-w-[320px]"
           draggable={false}
         />
       </div>

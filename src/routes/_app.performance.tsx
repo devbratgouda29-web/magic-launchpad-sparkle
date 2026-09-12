@@ -125,22 +125,9 @@ function PerformancePage() {
   const [wrapped, setWrapped] = useState(wrappedParam);
   // Hydration-safe: localStorage is read AFTER mount so the server HTML and
   // the first client render always match.
-  const [devBypass, setDevBypass] = useState(false);
-  useEffect(() => {
-    try {
-      setDevBypass(!!localStorage.getItem("ftlb.devpass.bypass"));
-    } catch {
-      /* ignore */
-    }
-  }, []);
   useEffect(() => {
     setWrapped(wrappedParam);
   }, [wrappedParam]);
-  useEffect(() => {
-    const on = () => setDevBypass(true);
-    window.addEventListener("devpass:bypass", on);
-    return () => window.removeEventListener("devpass:bypass", on);
-  }, []);
 
   // --- Live data engine: re-read every store on focus/storage/interval ------
   const [tick, setTick] = useState(0);
@@ -231,10 +218,7 @@ function PerformancePage() {
     navigate({ search: { view, wrapped: false }, replace: true }).catch(() => {});
   };
 
-  const basePdfUnlock = useMemo(() => computePdfUnlock(view), [view]);
-  const pdfUnlock: PdfUnlock = devBypass
-    ? { unlocked: true, label: "Download Report Card (PDF) — Dev Unlocked" }
-    : basePdfUnlock;
+  const pdfUnlock: PdfUnlock = useMemo(() => computePdfUnlock(), [tick]);
 
   const anchor =
     view === "weekly"
@@ -275,39 +259,6 @@ function PerformancePage() {
 
 
 
-
-      <button
-        type="button"
-        onClick={() => {
-          const next = !devBypass;
-          setDevBypass(next);
-          try {
-            if (next) localStorage.setItem("ftlb.devpass.bypass", String(Date.now()));
-            else localStorage.removeItem("ftlb.devpass.bypass");
-          } catch {}
-        }}
-        className={
-          "flex items-center justify-between rounded-xl border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] " +
-          (devBypass
-            ? "border-amber-400/60 bg-amber-400/15 text-amber-200"
-            : "border-border bg-card text-muted-foreground")
-        }
-      >
-        <span>Dev PDF Unlock (Preview)</span>
-        <span
-          className={
-            "ml-3 inline-flex h-5 w-9 items-center rounded-full px-0.5 transition-colors " +
-            (devBypass ? "bg-amber-400/70" : "bg-muted")
-          }
-        >
-          <span
-            className={
-              "h-4 w-4 rounded-full bg-white transition-transform " +
-              (devBypass ? "translate-x-4" : "translate-x-0")
-            }
-          />
-        </span>
-      </button>
 
       {wrapped && (
         <WrappedOverlay
@@ -361,23 +312,15 @@ function PerformancePage() {
 
 type PdfUnlock = { unlocked: boolean; label: string };
 
-function computePdfUnlock(view: "weekly" | "monthly"): PdfUnlock {
+function computePdfUnlock(): PdfUnlock {
   const now = new Date();
-  if (view === "weekly") {
-    // Sunday after 23:59
-    const unlocked =
-      now.getDay() === 0 &&
-      (now.getHours() > 23 || (now.getHours() === 23 && now.getMinutes() >= 59));
-    return {
-      unlocked,
-      label: unlocked ? "Download Report Card (PDF)" : "Available at week's end",
-    };
-  }
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const unlocked = now.getDate() === lastDay;
+  // Sunday night window: 20:00 - 23:59.
+  const unlocked = now.getDay() === 0 && now.getHours() >= 20;
   return {
     unlocked,
-    label: unlocked ? "Download Report Card (PDF)" : "Available at month's end",
+    label: unlocked
+      ? "Download Report Card (PDF)"
+      : "PDF Export unlocks every Sunday night.",
   };
 }
 

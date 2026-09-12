@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { BarChart3, Eye, EyeOff, FlaskConical, Loader2, ShieldCheck, Star, Users } from "lucide-react";
+import { BarChart3, FlaskConical, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 import {
   getPurchaseAnalytics,
-  listReviewsForModeration,
   listUsers,
-  setReviewHidden,
   setUserAdmin,
-  type AdminReview,
   type AdminUser,
   type PurchaseAnalytics,
 } from "@/lib/admin.functions";
