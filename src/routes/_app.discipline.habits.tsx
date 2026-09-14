@@ -103,24 +103,16 @@ type Habit = {
 
 const STORAGE_KEY = "ftlb.habits.v2";
 
-function defaultHabits(): Habit[] {
-  const now = Date.now();
-  return [
-    { id: "h1", name: "No Netflix", emoji: "🚫", startTs: now - 6 * 60 * 60 * 1000, streak: 12, relapses: [] },
-    { id: "h2", name: "Wake up at 5 AM", emoji: "⏰", startTs: now - 2 * 60 * 60 * 1000, streak: 4, relapses: [] },
-  ];
-}
-
 function loadHabits(): Habit[] {
-  if (typeof window === "undefined") return defaultHabits();
+  if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultHabits();
+    if (!raw) return [];
     const parsed = JSON.parse(raw) as Habit[];
-    if (!Array.isArray(parsed) || parsed.length === 0) return defaultHabits();
+    if (!Array.isArray(parsed)) return [];
     return parsed;
   } catch {
-    return defaultHabits();
+    return [];
   }
 }
 
