@@ -128,7 +128,7 @@ type View = "clock" | "rank";
 
 function HabitTrackerPage() {
   const { requireAuth } = useAuth();
-  const [habits, setHabits] = useState<Habit[]>(() => defaultHabits());
+  const [habits, setHabits] = useState<Habit[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const [view, setView] = useState<View>("clock");
   const [adding, setAdding] = useState(false);
