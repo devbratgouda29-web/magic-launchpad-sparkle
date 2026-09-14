@@ -103,24 +103,16 @@ type Habit = {
 
 const STORAGE_KEY = "ftlb.habits.v2";
 
-function defaultHabits(): Habit[] {
-  const now = Date.now();
-  return [
-    { id: "h1", name: "No Netflix", emoji: "🚫", startTs: now - 6 * 60 * 60 * 1000, streak: 12, relapses: [] },
-    { id: "h2", name: "Wake up at 5 AM", emoji: "⏰", startTs: now - 2 * 60 * 60 * 1000, streak: 4, relapses: [] },
-  ];
-}
-
 function loadHabits(): Habit[] {
-  if (typeof window === "undefined") return defaultHabits();
+  if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultHabits();
+    if (!raw) return [];
     const parsed = JSON.parse(raw) as Habit[];
-    if (!Array.isArray(parsed) || parsed.length === 0) return defaultHabits();
+    if (!Array.isArray(parsed)) return [];
     return parsed;
   } catch {
-    return defaultHabits();
+    return [];
   }
 }
 
@@ -136,7 +128,7 @@ type View = "clock" | "rank";
 
 function HabitTrackerPage() {
   const { requireAuth } = useAuth();
-  const [habits, setHabits] = useState<Habit[]>(() => defaultHabits());
+  const [habits, setHabits] = useState<Habit[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const [view, setView] = useState<View>("clock");
   const [adding, setAdding] = useState(false);
@@ -292,9 +284,21 @@ function HabitTrackerPage() {
             onCancel={() => setAdding(false)}
           />
         )}
-        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No clocks yet. Tap <span className="text-primary">+</span> to forge your first habit clock.
-        </div>
+        {!adding && (
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border p-10 text-center">
+            <span className="grid h-14 w-14 place-items-center rounded-full bg-secondary text-muted-foreground">
+              <Flame className="h-6 w-6" />
+            </span>
+            <p className="text-sm text-muted-foreground">No habits added yet</p>
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="rounded-full bg-primary px-5 py-2 text-xs font-bold uppercase tracking-wide text-primary-foreground shadow-lg shadow-primary/30"
+            >
+              Add Your First Habit
+            </button>
+          </div>
+        )}
       </div>
     );
   }
