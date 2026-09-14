@@ -284,9 +284,21 @@ function HabitTrackerPage() {
             onCancel={() => setAdding(false)}
           />
         )}
-        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No clocks yet. Tap <span className="text-primary">+</span> to forge your first habit clock.
-        </div>
+        {!adding && (
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border p-10 text-center">
+            <span className="grid h-14 w-14 place-items-center rounded-full bg-secondary text-muted-foreground">
+              <Flame className="h-6 w-6" />
+            </span>
+            <p className="text-sm text-muted-foreground">No habits added yet</p>
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="rounded-full bg-primary px-5 py-2 text-xs font-bold uppercase tracking-wide text-primary-foreground shadow-lg shadow-primary/30"
+            >
+              Add Your First Habit
+            </button>
+          </div>
+        )}
       </div>
     );
   }
