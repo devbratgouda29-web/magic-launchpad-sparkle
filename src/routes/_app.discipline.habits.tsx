@@ -61,7 +61,8 @@ const habitMilestones: Milestone[] = [
   { level: 15, streak: 365, name: "CELESTIAL ARCHITECT OF THE LAST BENCH", shield: "shield_15.png", titleImg: "title_15.png", desc: "Sovereign of the Eternal Bench, shaping reality among the stars. A full year of unbroken discipline has elevated you beyond habit, beyond identity, into architecture — you now design the very structure of your days, your mind, and your legacy. From the last bench of a forgotten classroom, you have built a throne that touches the heavens, and the constellations themselves take notes from your example." },
 ];
 
-function milestoneFor(streak: number): Milestone {
+function milestoneFor(streak: number): Milestone | null {
+  if (streak < 1) return null;
   let current = habitMilestones[0];
   for (const m of habitMilestones) {
     if (streak >= m.streak) current = m;
@@ -312,8 +313,8 @@ function HabitTrackerPage() {
 
       {/* Prominent current rank shield frame */}
       <RankShieldFrame
-        level={activeMilestone.level}
-        rankName={activeMilestone.name}
+        level={activeMilestone ? activeMilestone.level : 0}
+        rankName={activeMilestone ? activeMilestone.name : "UNRANKED (DAY 0)"}
         streak={active.streak}
         nextStreak={activeNext ? activeNext.streak : null}
         nextRankName={activeNext ? activeNext.name : null}
@@ -567,7 +568,7 @@ function ClockView({
             <Flame className="h-3 w-3" /> Live Clock
           </span>
           <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Lvl {milestone.level} / 15
+            Lvl {milestone ? milestone.level : 0} / 15
           </span>
         </div>
 
@@ -612,14 +613,14 @@ function ClockView({
         {/* Current rank title artwork only; the large shield already appears above. */}
         <div className="w-full max-w-xs sm:max-w-sm mx-auto">
           <RankTitleBanner
-            level={milestone.level}
-            title={milestone.name}
-            unlocked
+            level={milestone ? milestone.level : 1}
+            title={milestone ? milestone.name : "A HERO REBORN (LOCKED)"}
+            unlocked={!!milestone}
             eager
           />
         </div>
         <p className="max-w-sm text-center text-[13px] italic leading-relaxed text-muted-foreground">
-          {milestone.desc}
+          {milestone ? milestone.desc : "Complete your first full 24-hour cycle to unlock Level 1 and claim your first emblem!"}
         </p>
 
         {next ? (
