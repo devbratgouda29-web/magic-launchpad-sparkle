@@ -788,7 +788,7 @@ function RankColumnView({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {habitMilestones.map((m) => {
           const unlocked = currentStreak >= m.streak;
-          const isCurrent = m.level === current.level;
+          const isCurrent = current ? m.level === current.level : false;
           return (
             <button
               key={m.level}
