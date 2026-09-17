@@ -129,8 +129,11 @@ type View = "clock" | "rank";
 
 function HabitTrackerPage() {
   const { requireAuth } = useAuth();
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [activeId, setActiveId] = useState<string>("");
+  const [habits, setHabits] = useState<Habit[]>(() => loadHabits());
+  const [activeId, setActiveId] = useState<string>(() => {
+    const loaded = loadHabits();
+    return loaded[0]?.id ?? "";
+  });
   const [view, setView] = useState<View>("clock");
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -141,13 +144,6 @@ function HabitTrackerPage() {
   // Quote is static per view/tab. Only re-picks on active tab change or view change.
   const [quote, setQuote] = useState<string>(() => pickQuote());
   const prevQuoteRef = useRef<string>(quote);
-
-  // hydrate from storage
-  useEffect(() => {
-    const loaded = loadHabits();
-    setHabits(loaded);
-    setActiveId(loaded[0]?.id ?? "");
-  }, []);
 
   // persist
   useEffect(() => {
@@ -253,7 +249,7 @@ function HabitTrackerPage() {
   const removeHabit = (id: string) => {
     setHabits((prev) => {
       const filtered = prev.filter((h) => h.id !== id);
-      if (activeId === id) setActiveId(filtered[0]?.id ?? "");
+      setActiveId((currentActive) => (currentActive === id ? filtered[0]?.id ?? "" : currentActive));
       return filtered;
     });
   };
