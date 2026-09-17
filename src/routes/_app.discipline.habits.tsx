@@ -213,14 +213,15 @@ function HabitTrackerPage() {
   }, []);
 
   // ---------- Rank-up celebration ----------
+  // ---------- Rank-up celebration ----------
   const [celebration, setCelebration] = useState<Milestone | null>(null);
   const prevLevelsRef = useRef<Record<string, number>>({});
   useEffect(() => {
     for (const h of habits) {
-      const lvl = milestoneFor(h.streak).level;
+      const m = milestoneFor(h.streak);
+      const lvl = m ? m.level : 0;
       const prev = prevLevelsRef.current[h.id];
-      if (prev !== undefined && lvl > prev) {
-        const m = milestoneFor(h.streak);
+      if (prev !== undefined && m && lvl > prev) {
         setCelebration(m);
         toast.success("RANK UP! You have unlocked a new level emblem.", {
           description: `${m.name} · Level ${m.level}`,
