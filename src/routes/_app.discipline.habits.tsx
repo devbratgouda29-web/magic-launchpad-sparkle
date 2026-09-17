@@ -194,14 +194,18 @@ function HabitTrackerPage() {
   // Warm the browser cache for only the ranks represented by the user's
   // habits, keeping switches immediate without downloading the full gallery.
   useEffect(() => {
-    const levels = new Set(habits.map((habit) => milestoneFor(habit.streak).level));
-    for (const level of levels) {
-      const shield = new Image();
-      shield.src = `/shields/shield-${level}.png`;
-      const title = new Image();
-      title.src = `/shields/title-${level}.png`;
-    }
-  }, [habits]);
+  const levels = new Set(
+    habits
+      .map((habit) => milestoneFor(habit.streak)?.level)
+      .filter((lvl): lvl is number => lvl !== undefined)
+  );
+  for (const level of levels) {
+    const shield = new Image();
+    shield.src = `/shields/shield-${level}.png`;
+    const title = new Image();
+    title.src = `/shields/title-${level}.png`;
+  }
+}, [habits]);
 
   const selectHabit = useCallback((id: string) => {
     setActiveId(id);
@@ -637,7 +641,7 @@ function ClockView({
               <div
                 className="h-full bg-crimson-gradient"
                 style={{
-                  width: `${Math.min(100, ((habit.streak - milestone.streak) / Math.max(1, next.streak - milestone.streak)) * 100)}%`,
+                  width: `${Math.min(100, ((habit.streak - (milestone ? milestone.streak : 0)) / Math.max(1, next.streak - (milestone ? milestone.streak : 0))) * 100)}%`,
                 }}
               />
             </div>
