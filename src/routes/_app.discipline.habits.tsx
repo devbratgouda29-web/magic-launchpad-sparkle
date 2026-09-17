@@ -782,7 +782,7 @@ function RankColumnView({
           The 15 Ranks
         </h2>
         <span className="text-[11px] text-muted-foreground">
-          Current · Lvl {current.level}
+          Current · {current ? `Lvl ${current.level}` : "Unranked (Day 0)"}
         </span>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -861,7 +861,8 @@ function RankModal({
   onClose: () => void;
 }) {
   const unlocked = currentStreak >= milestone.streak;
-  const isCurrent = milestoneFor(currentStreak).level === milestone.level;
+  const current = milestoneFor(currentStreak);
+  const isCurrent = current ? current.level === milestone.level : false;
   return (
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-5 backdrop-blur-sm"
