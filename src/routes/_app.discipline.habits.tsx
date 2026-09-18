@@ -944,11 +944,20 @@ function RankShieldImg({
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
+
+  // Apply extra large scaling specifically for levels 8 to 12
+  const isHighLevel = level >= 8 && level <= 12;
+
+  const sizeClasses = isHighLevel
+    ? "w-80 h-80 md:w-[360px] md:h-[360px] -my-4 scale-110" // Expanded size for Lvl 8-12
+    : "w-48 h-48 md:w-56 md:h-56";                         // Original size for Lvl 1-7
+
   if (failed) {
     return (
       <div
         className={cn(
-          "grid w-64 h-64 md:w-72 md:h-72 place-items-center rounded-xl bg-secondary text-muted-foreground mx-auto",
+          "grid place-items-center rounded-xl bg-secondary text-muted-foreground mx-auto transition-all",
+          sizeClasses,
           !unlocked && "opacity-50 grayscale contrast-125",
           className,
         )}
@@ -957,6 +966,7 @@ function RankShieldImg({
       </div>
     );
   }
+
   return (
     <img
       src={`/shields/shield-${level}.png`}
@@ -965,7 +975,8 @@ function RankShieldImg({
       loading="lazy"
       decoding="async"
       className={cn(
-        "w-64 h-64 md:w-72 md:h-72 object-contain mx-auto drop-shadow-md select-none transition-all",
+        "object-contain mx-auto drop-shadow-md select-none transition-all",
+        sizeClasses,
         !unlocked && "opacity-80 grayscale brightness-[0.55] contrast-110",
         className,
       )}
@@ -973,6 +984,3 @@ function RankShieldImg({
     />
   );
 }
-
-
-
