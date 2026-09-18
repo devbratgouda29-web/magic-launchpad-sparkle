@@ -550,14 +550,21 @@ function LibraryPage() {
                         </Link>
                       )}
                       <button
-                        onClick={() => {
-                          removeDesk(d.id);
-                        }}
-                        className="grid h-8 w-8 place-items-center rounded-full bg-destructive/10 text-destructive"
-                        aria-label="Remove"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+  onClick={() => {
+    // 1. Remove item from local desk store
+    removeDesk(d.id);
+    
+    // 2. Remove associated revision schedule and active debt item
+    if (item) {
+      removeItem(item.id);
+    }
+  }}
+  className="grid h-8 w-8 place-items-center rounded-full bg-destructive/10 text-destructive"
+  aria-label="Remove"
+>
+  <Trash2 className="h-3.5 w-3.5" />
+</button>
+
                     </div>
 
 
