@@ -950,7 +950,7 @@ function RankShieldImg({
 
   const sizeClasses = isHighLevel
     ? "w-80 h-80 md:w-[360px] md:h-[360px] -my-4 scale-110" // Expanded size for Lvl 8-12
-    : "w-48 h-48 md:w-56 md:h-56";                         // Original size for Lvl 1-7
+    : "w-64 h-64 md:w-72 md:h-72";                         // Original size for Lvl 1-7
 
   if (failed) {
     return (
