@@ -948,7 +948,7 @@ function RankShieldImg({
     return (
       <div
         className={cn(
-          "grid w-48 h-48 md:w-56 md:h-56 place-items-center rounded-xl bg-secondary text-muted-foreground mx-auto",
+          "grid w-64 h-64 md:w-72 md:h-72 place-items-center rounded-xl bg-secondary text-muted-foreground mx-auto",
           !unlocked && "opacity-50 grayscale contrast-125",
           className,
         )}
@@ -965,14 +965,14 @@ function RankShieldImg({
       loading="lazy"
       decoding="async"
       className={cn(
-        "w-48 h-48 md:w-56 md:h-56 object-contain mx-auto drop-shadow-md select-none transition-all",
+        "w-64 h-64 md:w-72 md:h-72 object-contain mx-auto drop-shadow-md select-none transition-all",
         !unlocked && "opacity-80 grayscale brightness-[0.55] contrast-110",
         className,
       )}
       draggable={false}
     />
-
   );
 }
+
 
 
