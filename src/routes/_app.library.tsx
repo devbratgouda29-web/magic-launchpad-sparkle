@@ -159,7 +159,7 @@ function LibraryPage() {
     setPickerFor(null);
   };
 
-  const relooп = (item: RevisionItem) => {
+  const reloop = (item: RevisionItem) => {
     resetItem(item.id, "easy");
   };
 
@@ -436,7 +436,7 @@ function LibraryPage() {
                     ) : item.mastered ? (
                       <button
                         type="button"
-                        onClick={() => relooп(item)}
+                        onClick={() => reloop(item)}
                         className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-500 to-fuchsia-500 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-white hover:opacity-90"
                       >
                         <RotateCcw className="h-3.5 w-3.5" /> Initiate Re-Recall Cycle
@@ -550,25 +550,21 @@ function LibraryPage() {
                         </Link>
                       )}
                       <button
-  onClick={() => {
-    // 1. Remove item from local desk store
-    removeDesk(d.id);
+                        onClick={() => {
+                        // 1. Remove item from local desk store
+                        removeDesk(d.id);
     
-    // 2. Remove associated revision schedule and active debt item
-    if (item) {
-      removeItem(item.id);
-    }
-  }}
-  className="grid h-8 w-8 place-items-center rounded-full bg-destructive/10 text-destructive"
-  aria-label="Remove"
->
-  <Trash2 className="h-3.5 w-3.5" />
-</button>
-
-                    </div>
-
-
-
+                       // 2. Remove associated revision schedule and active debt item
+                       if (item) {
+                         removeItem(item.id);
+                       }
+                     }}
+                     className="grid h-8 w-8 place-items-center rounded-full bg-destructive/10 text-destructive"
+                     aria-label="Remove"
+                   >
+                     <Trash2 className="h-3.5 w-3.5" />
+                   </button>
+                   </div>
                     <div className="mt-3 rounded-xl border border-purple-500/30 bg-purple-500/5 p-3">
                       {!item && !isPicking && (
                         <button
@@ -629,7 +625,7 @@ function LibraryPage() {
                               <Brain className="h-3.5 w-3.5" /> Recall Now · Overdue
                             </Link>
                           ) : item.mastered ? (
-                            <button onClick={() => relooп(item)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-500 to-fuchsia-500 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-white">
+                            <button onClick={() => reloop(item)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-500 to-fuchsia-500 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-white">
                               <RotateCcw className="h-3.5 w-3.5" /> Initiate Re-Recall Cycle
                             </button>
                           ) : null}
