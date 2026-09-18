@@ -7,6 +7,7 @@ import {
   getItemBySource,
   progressPct,
   resetItem,
+  removeItem, // <--- ADD THIS IMPORT
   resumeItem,
   subscribe as subscribeRevision,
   type RevisionItem,
