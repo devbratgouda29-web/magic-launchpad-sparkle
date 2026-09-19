@@ -15,6 +15,7 @@ import { getDeskItem, type DeskItem } from "@/lib/desk-store";
 import {
   clearSession,
   ensureSession,
+  markCompleted,
   setPlaying as setSessionPlaying,
   subscribe as subscribeSession,
   type RecallSession,
@@ -97,6 +98,7 @@ function RecallPage() {
       });
       advanceOnClaim(itemId);
     }
+    markCompleted();
     clearSession();
     navigate({ to: "/home" });
   };
@@ -236,7 +238,9 @@ function RecallPage() {
                  style={{ width: `${pct}%` }} />
           </div>
           <p className={`mt-3 text-xs leading-relaxed ${isDebt ? "text-destructive/90" : "text-purple-200/90"}`}>
-            Start reading the PDF for at least {durationMinutes} minutes to complete your recall session
+            {isPhysical 
+              ? `Revise your physical notes for at least ${durationMinutes} minutes to complete your recall session`
+              : `Start reading for at least ${durationMinutes} minutes to complete your recall session`}
           </p>
           <p className="mt-3 text-xs text-muted-foreground">
             Current Level · <span className="font-bold text-foreground">T{item.tier}</span>
