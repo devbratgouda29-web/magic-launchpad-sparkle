@@ -12,12 +12,9 @@ import {
 import { recordRevisionSession } from "@/lib/revision-logs";
 
 import { getDeskItem, type DeskItem } from "@/lib/desk-store";
-import { dataUrlToBlobUrl } from "@/lib/pdf-blob";
-import { PdfViewer } from "@/components/PdfViewer";
 import {
   clearSession,
   ensureSession,
-  markCompleted,
   setPlaying as setSessionPlaying,
   subscribe as subscribeSession,
   type RecallSession,
@@ -82,23 +79,7 @@ function RecallPage() {
 
   // Auto-pause any running timer when leaving this screen.
   useEffect(() => () => setSessionPlaying(false), []);
-
-
-
-  // Convert stored data: PDF into an inline-renderable blob: URL. Some
-  // browsers refuse to render `data:application/pdf` inside an <iframe>
-  // and would otherwise trigger a native download instead of inline view.
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
-  useEffect(() => {
-    setPdfBlobUrl(null);
-    if (deskFile?.kind === "pdf" && deskFile.dataUrl) {
-      const url = dataUrlToBlobUrl(deskFile.dataUrl);
-      setPdfBlobUrl(url);
-      return () => { if (url.startsWith("blob:")) URL.revokeObjectURL(url); };
-    }
-  }, [deskFile?.id, deskFile?.kind, deskFile?.dataUrl]);
-
-  const submit = (difficulty: "hard" | "easy") => {
+ const submit = (difficulty: "hard" | "easy") => {
     if (item?.fractured) {
       // Debt recall: repair the fracture, tier stays where it was.
       restoreItem(itemId, difficulty);
