@@ -582,15 +582,13 @@ function PremiumReader({ noteId, mode }: { noteId: string; mode: ReaderMode }) {
                 style={{ filter: nightModeFilter }}
               >
                 <PdfViewer
-                  src={item.dataUrl!} 
-                  name={item.name}
+                  src={pdfUrl}
+                  name={note?.title ?? "note"}
                   className="h-full w-auto max-w-full"
                   hideControls
                   page={page}
-                  onNumPages={(n) => {
-                    setNumPages(n);
-                    setPage((p) => Math.min(Math.max(1, p), n));
-                  }}
+                  onNumPages={(n) => setPdfPages(n)}
+                  onPageChange={(p) => setPage(p)}
                 />
 
               </div>
@@ -876,7 +874,7 @@ function DeskReader({ noteId, mode }: { noteId: string; mode: ReaderMode }) {
                 style={{ filter: nightModeFilter }}
               >
                 <PdfViewer
-                  src={pdfBlobUrl!}
+                  src={item.dataUrl!}
                   name={item.name}
                   className="h-full w-auto max-w-full"
                   hideControls
