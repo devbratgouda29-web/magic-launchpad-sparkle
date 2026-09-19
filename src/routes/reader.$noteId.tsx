@@ -575,25 +575,28 @@ function PremiumReader({ noteId, mode }: { noteId: string; mode: ReaderMode }) {
                 ))}
               </div>
             </div>
-          ) : (
+                    ) : (
             <div className="absolute inset-0 flex snap-x snap-mandatory items-center overflow-x-auto p-4">
               <div
                 className="relative mx-auto flex h-full w-full max-w-3xl shrink-0 snap-center items-center justify-center"
                 style={{ filter: nightModeFilter }}
               >
                 <PdfViewer
-                  src={pdfUrl}
-                  name={note?.title ?? "note"}
-                  className="h-full w-full"
+                  src={item.dataUrl!} 
+                  name={item.name}
+                  className="h-full w-auto max-w-full"
                   hideControls
                   page={page}
-                  onNumPages={(n) => setPdfPages(n)}
-                  onPageChange={(p) => setPage(p)}
+                  onNumPages={(n) => {
+                    setNumPages(n);
+                    setPage((p) => Math.min(Math.max(1, p), n));
+                  }}
                 />
 
               </div>
             </div>
           )
+
         ) : pdfLoading ? (
           <div className="absolute inset-0 grid place-items-center text-xs text-white/60">
             Loading your note…
