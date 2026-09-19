@@ -178,6 +178,9 @@ function useReaderRecall(sourceId: string, mode: ReaderMode) {
         overtimeMs: cur.overtimeMs ?? 0,
       });
     }
+
+    markCompleted();
+    
     // Debt Recall: repair the CURRENT tier badge instead of advancing.
     if (cur.isDebt || preItem?.fractured) {
       const repaired = repairFractured(cur.itemId);
@@ -777,17 +780,6 @@ function DeskReader({ noteId, mode }: { noteId: string; mode: ReaderMode }) {
   useEffect(() => {
     setItem(getDeskItem(noteId));
   }, [noteId]);
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
-  useEffect(() => {
-    setPdfBlobUrl(null);
-    if (item?.kind === "pdf" && item.dataUrl) {
-      const url = dataUrlToBlobUrl(item.dataUrl);
-      setPdfBlobUrl(url);
-      return () => {
-        if (url.startsWith("blob:")) URL.revokeObjectURL(url);
-      };
-    }
-  }, [item?.id, item?.dataUrl, item?.kind]);
 
   const [isControlsVisible, setIsControlsVisible] = useState(true);
   const [page, setPage] = useState(1);
@@ -795,8 +787,6 @@ function DeskReader({ noteId, mode }: { noteId: string; mode: ReaderMode }) {
   const [viewOpen, setViewOpen] = useState(false);
   const [direction, setDirection] = useState<Direction>("horizontal");
   const [background, setBackground] = useState<Background>("original");
-
-
 
   if (!item) {
     return (
@@ -811,7 +801,7 @@ function DeskReader({ noteId, mode }: { noteId: string; mode: ReaderMode }) {
 
   const track = getItemBySource(noteId);
   const nightModeFilter = background === "invert" ? "invert(1) hue-rotate(180deg)" : "none";
-  const isPdf = item.kind === "pdf" && !!pdfBlobUrl;
+  const isPdf = item.kind === "pdf" && !!item.dataUrl;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
@@ -862,7 +852,7 @@ function DeskReader({ noteId, mode }: { noteId: string; mode: ReaderMode }) {
                 {Array.from({ length: numPages }, (_, i) => (
                   <div key={i} className="relative w-full">
                     <PdfViewer
-                      src={pdfBlobUrl!}
+                      src={item.dataUrl!}
                       name={item.name}
                       className="w-full"
                       hideControls
