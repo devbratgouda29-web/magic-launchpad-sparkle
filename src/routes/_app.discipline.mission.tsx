@@ -366,66 +366,86 @@ function MissionLockdownPage() {
         </p>
       </header>
 
-      {/* Ghost Tasks — auto-injected by the Revision Engine when overdue */}
-      {ghosts.length > 0 && (
-        <section className="relative overflow-hidden rounded-2xl border border-purple-500/40 bg-[oklch(0.12_0.05_290)] p-4 text-purple-100 shadow-[0_0_40px_-20px_rgba(168,85,247,0.65)]">
-          <div className="pointer-events-none absolute inset-0 opacity-40" style={{
-            background:
-         "radial-gradient(circle at 15% 20%, rgba(168,85,247,0.25), transparent 60%), radial-gradient(circle at 85% 80%, rgba(236,72,153,0.2), transparent 60%)",
-    }} />
-    <div className="relative mb-3 flex items-center gap-2">
-      <Ghost className="h-4 w-4 text-purple-300" />
-      <h2 className="min-w-0 flex-1 truncate text-sm font-bold uppercase tracking-wide">
-        Lockdown Tasks
-      </h2>
-      <span className="shrink-0 rounded-full bg-purple-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-purple-200">
-        {ghosts.length} active
-      </span>
-    </div>
-    <ul className="relative flex flex-col gap-2">
-      {ghosts.map((g) => {
-        const isDebt = g.isDebt || g.graceLabel?.toLowerCase().includes("debt");
-        const cardBg = isDebt
-          ? "border-destructive/50 bg-destructive/15 hover:border-destructive hover:bg-destructive/25 text-red-100"
-          : "border-purple-500/30 bg-black/30 hover:border-purple-400/60 hover:bg-black/50 text-purple-50";
-        const iconBg = isDebt
-          ? "bg-destructive/30 text-red-200"
-          : "bg-purple-500/20 text-purple-200";
-        const badgeBg = isDebt
+            {/* Ghost Tasks — auto-injected by the Revision Engine when overdue */}
+      {ghosts.length > 0 && (() => {
+        const hasDebtOrExpired = ghosts.some(
+          (g) => g.isDebt || g.graceLabel?.toLowerCase().includes("debt") || g.graceLabel?.toLowerCase().includes("expired")
+        );
+
+        const sectionBg = hasDebtOrExpired
+          ? "border-destructive/60 bg-[oklch(0.14_0.08_25)] text-red-100 shadow-[0_0_40px_-20px_rgba(239,68,68,0.65)]"
+          : "border-purple-500/40 bg-[oklch(0.12_0.05_290)] text-purple-100 shadow-[0_0_40px_-20px_rgba(168,85,247,0.65)]";
+
+        const titleIconColor = hasDebtOrExpired ? "text-red-400" : "text-purple-300";
+        const countBadgeBg = hasDebtOrExpired
           ? "bg-destructive/30 text-red-200"
           : "bg-purple-500/20 text-purple-200";
 
         return (
-          <li key={g.id}>
-            <Link
-              to="/recall/$itemId"
-              params={{ itemId: g.itemId }}
-              title={g.title}
-              className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors active:scale-[0.99] ${cardBg}`}
-            >
-              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${iconBg}`}>
-                <Ghost className="h-4 w-4" />
+          <section className={`relative overflow-hidden rounded-2xl border p-4 transition-all ${sectionBg}`}>
+            <div
+              className="pointer-events-none absolute inset-0 opacity-40"
+              style={{
+                background: hasDebtOrExpired
+                  ? "radial-gradient(circle at 15% 20%, rgba(239,68,68,0.3), transparent 60%), radial-gradient(circle at 85% 80%, rgba(185,28,28,0.2), transparent 60%)"
+                  : "radial-gradient(circle at 15% 20%, rgba(168,85,247,0.25), transparent 60%), radial-gradient(circle at 85% 80%, rgba(236,72,153,0.2), transparent 60%)",
+              }}
+            />
+            <div className="relative mb-3 flex items-center gap-2">
+              <Ghost className={`h-4 w-4 ${titleIconColor}`} />
+              <h2 className="min-w-0 flex-1 truncate text-sm font-bold uppercase tracking-wide">
+                Lockdown Tasks
+              </h2>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${countBadgeBg}`}>
+                {ghosts.length} active
               </span>
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                {g.chapterName}
-              </span>
-              <span className={`shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] ${isDebt ? "text-red-300" : "text-purple-300"}`}>
-                {isDebt ? "DEBT RECALL" : g.dueTomorrow ? "Due Tomorrow" : g.graceLabel}
-              </span>
-              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${badgeBg}`}>
-                {g.durationMin} min
-              </span>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+            </div>
+            <ul className="relative flex flex-col gap-2">
+              {ghosts.map((g) => {
+                const isDebt = g.isDebt || g.graceLabel?.toLowerCase().includes("debt") || g.graceLabel?.toLowerCase().includes("expired");
+                const cardBg = isDebt
+                  ? "border-destructive/60 bg-destructive/20 hover:border-destructive hover:bg-destructive/30 text-red-100"
+                  : "border-purple-500/30 bg-black/30 hover:border-purple-400/60 hover:bg-black/50 text-purple-50";
+                const iconBg = isDebt
+                  ? "bg-destructive/40 text-red-200"
+                  : "bg-purple-500/20 text-purple-200";
+                const badgeBg = isDebt
+                  ? "bg-destructive/40 text-red-200"
+                  : "bg-purple-500/20 text-purple-200";
 
-    <p className="relative mt-3 text-[11px] text-purple-200/70">
-      Clear pending debt recalls and ghost tasks before they compound.
-    </p>
-  </section>
-)}
+                return (
+                  <li key={g.id}>
+                    <Link
+                      to="/recall/$itemId"
+                      params={{ itemId: g.itemId }}
+                      title={g.title}
+                      className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors active:scale-[0.99] ${cardBg}`}
+                    >
+                      <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${iconBg}`}>
+                        <Ghost className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                        {g.chapterName}
+                      </span>
+                      <span className={`shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] ${isDebt ? "text-red-300" : "text-purple-300"}`}>
+                        {isDebt ? "DEBT RECALL" : g.dueTomorrow ? "Due Tomorrow" : g.graceLabel}
+                      </span>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${badgeBg}`}>
+                        {g.durationMin} min
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <p className={`relative mt-3 text-[11px] ${hasDebtOrExpired ? "text-red-200/80" : "text-purple-200/70"}`}>
+              Clear pending debt recalls and ghost tasks before they compound.
+            </p>
+          </section>
+        );
+      })()}
+
 
       {/* Task list / editor */}
       <section className="rounded-2xl border border-border bg-card p-4">
