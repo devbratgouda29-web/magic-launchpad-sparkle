@@ -182,7 +182,40 @@ export async function updateNote(id: string, patch: Partial<NoteDraft> & { hidde
 export async function deleteNote(id: string) {
   const { error } = await supabase.from("notes").delete().eq("id", id);
   if (error) throw new Error(error.message);
+
+  // Clean up all local revision/ghost data associated with this deleted note
+  if (typeof window !== "undefined") {
+    try {
+      const REVISION_KEY = "ftlb.revision_state.v1";
+      const LOGS_KEY = "ftlb.revision_logs.v1";
+
+      // 1. Purge from revision state (schedules & fractured states)
+      const rawState = localStorage.getItem(REVISION_KEY);
+      if (rawState) {
+        const state = JSON.parse(rawState);
+        if (state.schedules && state.schedules[id]) delete state.schedules[id];
+        if (state.fractured && state.fractured[id]) delete state.fractured[id];
+        localStorage.setItem(REVISION_KEY, JSON.stringify(state));
+      }
+
+      // 2. Purge from revision logs
+      const rawLogs = localStorage.getItem(LOGS_KEY);
+      if (rawLogs) {
+        const logs = JSON.parse(rawLogs);
+        if (Array.isArray(logs)) {
+          const filteredLogs = logs.filter((log: any) => log.itemId !== id);
+          localStorage.setItem(LOGS_KEY, JSON.stringify(filteredLogs));
+        }
+      }
+
+      // 3. Dispatch update event so Mission Lockdown updates instantly
+      window.dispatchEvent(new CustomEvent("ftlb:revision-logged"));
+    } catch (e) {
+      console.error("Failed to cleanup revision data for note:", id, e);
+    }
+  }
 }
+
 
 /* ------------------------------------------------------------------ *
  * File storage — everything lives in the private `notes-bucket`.
