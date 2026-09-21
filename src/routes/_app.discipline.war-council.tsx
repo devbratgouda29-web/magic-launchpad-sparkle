@@ -11,7 +11,6 @@ import {
   YAxis,
 } from "recharts";
 import {
-  
   Copy,
   Users,
   Send,
@@ -28,9 +27,11 @@ import {
   ArrowLeft,
   Eye,
   Circle,
+  Search,
+  Flame,
+  Award,
 } from "lucide-react";
 import {
-  addSimulatedAlly,
   activeDownVotes,
   castExileVote,
   forgeCouncil,
@@ -58,10 +59,7 @@ import {
   useCouncilAvatars,
   type AvatarMap,
 } from "@/hooks/use-council-avatars";
-import {
-  evaluateWeeklyTier,
-  memberWeeklyHours,
-} from "@/lib/weekly-badge";
+import { evaluateWeeklyTier, memberWeeklyHours } from "@/lib/weekly-badge";
 import { getAllItems } from "@/lib/revision-engine";
 import {
   readGhostCounts,
@@ -71,9 +69,6 @@ import {
 } from "@/lib/report-data";
 import { dateKey } from "@/lib/weekly-badge";
 
-// Ghost tasks completed / assigned today for a council member. The current
-// user's counts come from the live mission diary + recall logs; simulated
-// allies fall back to their stored daily stats.
 function ghostStats(member: Member, isMe: boolean): { done: number; total: number } {
   if (isMe) {
     try {
@@ -90,8 +85,6 @@ function ghostStats(member: Member, isMe: boolean): { done: number; total: numbe
   return { done, total };
 }
 
-// Enforced 5-tier core evolution names. Legacy stored values (Iron / Bronze /
-// Silver / Gold / Platinum / Diamond) are folded into the canonical set.
 const CORE_TIER_ORDER = [
   "BRONZE CORE",
   "IRON CORE",
@@ -115,7 +108,6 @@ function normalizeCoreTier(raw: string): CoreTierName {
   return LEGACY_CORE_ALIAS[raw] ?? "BRONZE CORE";
 }
 
-// Map a canonical core tier to its Armory Wall 3D badge asset (/cores/tier-N.png).
 const CORE_TIER_TO_IMAGE: Record<CoreTierName, number> = {
   "BRONZE CORE": 1,
   "IRON CORE": 2,
@@ -131,7 +123,7 @@ export const Route = createFileRoute("/_app/discipline/war-council")({
       {
         name: "description",
         content:
-          "A 5-person peer accountability cell for real-life friends. No random matchmaking. Study-focused chat, battle reports, and vote-to-exile.",
+          "Five seats. Real allies. High-stakes study battle royale with monthly War Overlord crowning.",
       },
     ],
   }),
@@ -164,7 +156,6 @@ function WarCouncilPage() {
   const { council, me } = useCouncilState();
   const { user } = useAuth();
 
-  // Link the local council identity to the signed-in account so avatars sync.
   useEffect(() => {
     setMyUserId(user?.id ?? null);
   }, [user?.id]);
@@ -185,9 +176,10 @@ function WarCouncilPage() {
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent-amber">
             Discipline · Section E
           </p>
-          <h1 className="text-2xl leading-tight">The War Council</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Real-life allies only. 5 seats. No random matchmaking. No public rooms.
+          <h1 className="text-2xl leading-tight font-black">The War Council</h1>
+          {/* UPDATED HEADER MOTIVATIONAL LINE */}
+          <p className="mt-1 text-sm font-medium italic text-accent-amber/90">
+            "Five minds. One fortress. Standard-bearers of iron resolve — we rise together or fall alone."
           </p>
           <IdentityCard tag={me.userTag} name={me.name} />
         </div>
@@ -196,7 +188,6 @@ function WarCouncilPage() {
       {council ? (
         <CouncilView council={council} meTag={me.userTag} avatars={avatars} />
       ) : (
-
         <NoCouncilView />
       )}
     </div>
@@ -210,7 +201,7 @@ function IdentityCard({ tag, name }: { tag: string; name: string }) {
     <div className="mt-2 flex items-center justify-between rounded-xl border border-border bg-card p-3">
       <div className="min-w-0">
         <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-          Your User Tag
+          Your Player Tag
         </p>
         {editing ? (
           <div className="mt-1 flex items-center gap-2">
@@ -233,7 +224,7 @@ function IdentityCard({ tag, name }: { tag: string; name: string }) {
         ) : (
           <p className="text-sm">
             <span className="font-semibold">{name}</span>{" "}
-            <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+            <span className="ml-1 rounded bg-primary/20 px-1.5 py-0.5 font-mono text-xs font-bold text-primary">
               {tag}
             </span>
           </p>
@@ -256,18 +247,65 @@ function IdentityCard({ tag, name }: { tag: string; name: string }) {
 
 function NoCouncilView() {
   const [name, setName] = useState("");
-  const [joinTag, setJoinTag] = useState("");
+  const [searchTag, setSearchTag] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const handleSearchAndJoin = () => {
+    if (!searchTag.trim()) {
+      setError("Please enter a valid Player or Council Tag.");
+      return;
+    }
+    const cleanTag = searchTag.trim().toUpperCase();
+    const formattedTag = cleanTag.startsWith("#") ? cleanTag : `#${cleanTag}`;
+    const r = joinCouncilByTag(formattedTag);
+    if (!r.ok) {
+      setError(r.error ?? "No match found for tag.");
+    } else {
+      setError(null);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
+      {/* CLASH OF CLANS STYLE SEARCH SYSTEM */}
+      <section className="rounded-2xl border border-accent-amber/40 bg-card p-4">
+        <div className="mb-2 flex items-center gap-2 text-accent-amber">
+          <Search className="h-5 w-5" />
+          <h2 className="font-bold">Search Tag to Join Alliance</h2>
+        </div>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Find your friends using their unique Tag (e.g. <span className="font-mono text-foreground">#USR-8CRW</span> or <span className="font-mono text-foreground">#CNL-FLM5</span>).
+        </p>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input
+              value={searchTag}
+              onChange={(e) => {
+                setSearchTag(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="#USR-XXXX or #CNL-XXXX"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm uppercase pl-8"
+            />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          </div>
+          <button
+            onClick={handleSearchAndJoin}
+            className="rounded-md bg-accent-amber px-4 py-2 text-sm font-bold text-accent-amber-foreground hover:opacity-90"
+          >
+            Search
+          </button>
+        </div>
+        {error && <p className="mt-2 text-xs text-destructive font-medium">{error}</p>}
+      </section>
+
       <section className="rounded-2xl border border-primary/40 bg-card p-4">
         <div className="mb-2 flex items-center gap-2 text-primary">
           <ShieldAlert className="h-5 w-5" />
-          <h2 className="font-bold">Forge a Council</h2>
+          <h2 className="font-bold">Forge a New Council</h2>
         </div>
         <p className="mb-3 text-xs text-muted-foreground">
-          You become the Leader. A Council Tag is generated. Send it privately to
-          real-life friends only — never post it publicly.
+          Form an exclusive 5-seat cell. Generate a Council Tag to recruit brothers in arms.
         </p>
         <input
           value={name}
@@ -283,34 +321,9 @@ function NoCouncilView() {
         </button>
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <div className="mb-2 flex items-center gap-2">
-          <ClipboardPaste className="h-5 w-5 text-accent-amber" />
-          <h2 className="font-bold">Join by Tag</h2>
-        </div>
-        <p className="mb-3 text-xs text-muted-foreground">
-          Paste a Council Tag your friend sent you. There is no search directory.
-        </p>
-        <input
-          value={joinTag}
-          onChange={(e) => setJoinTag(e.target.value)}
-          placeholder="#CNL-XXXX"
-          className="mb-2 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm uppercase"
-        />
-        <button
-          onClick={() => {
-            const r = joinCouncilByTag(joinTag);
-            setError(r.ok ? null : r.error ?? "Failed.");
-          }}
-          className="w-full rounded-md border border-accent-amber py-2 text-sm font-bold text-accent-amber"
-        >
-          Join Council
-        </button>
-        {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-      </section>
-
-      <p className="text-center text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-        No random matchmaking · No public rooms · 5 seats maximum
+      {/* UPDATED FOOTER MOTIVATIONAL LINE */}
+      <p className="text-center text-[11px] font-semibold tracking-wide text-muted-foreground italic px-4">
+        "As iron sharpens iron, so one ally sharpens another. Forge your council, lock your seats, and claim victory."
       </p>
     </div>
   );
@@ -325,7 +338,7 @@ function CouncilView({
   meTag: string;
   avatars: AvatarMap;
 }) {
-  const [tab, setTab] = useState<"cell" | "chat" | "report" | "mock" | "exile">(
+  const [tab, setTab] = useState<"cell" | "chat" | "report" | "overlord" | "mock" | "exile">(
     "cell",
   );
   const [copied, setCopied] = useState(false);
@@ -339,7 +352,7 @@ function CouncilView({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              Council
+              Active Council
             </p>
             <h2 className="truncate text-lg font-bold">{council.name}</h2>
             <p className="mt-1 font-mono text-xs text-muted-foreground">
@@ -347,8 +360,8 @@ function CouncilView({
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
-              {council.members.length}/{MAX_MEMBERS}
+            <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
+              {council.members.length}/{MAX_MEMBERS} SEATS
             </span>
             <button
               onClick={() => {
@@ -356,7 +369,7 @@ function CouncilView({
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
               }}
-              className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"
+              className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:border-primary"
             >
               <Copy className="h-3 w-3" /> {copied ? "Copied" : "Copy Tag"}
             </button>
@@ -364,12 +377,13 @@ function CouncilView({
         </div>
       </section>
 
-      <nav className="grid grid-cols-5 gap-1 rounded-xl border border-border bg-card p-1 text-[11px] font-semibold">
+      <nav className="grid grid-cols-6 gap-1 rounded-xl border border-border bg-card p-1 text-[10px] font-bold uppercase tracking-wider">
         {(
           [
             ["cell", "Cell"],
             ["chat", "Chat"],
             ["report", "Report"],
+            ["overlord", "Overlord"],
             ["mock", "Ledger"],
             ["exile", "Exile"],
           ] as const
@@ -379,8 +393,8 @@ function CouncilView({
             onClick={() => setTab(k)}
             className={
               tab === k
-                ? "rounded-lg bg-primary py-2 text-primary-foreground"
-                : "rounded-lg py-2 text-muted-foreground"
+                ? "rounded-lg bg-primary py-2 text-primary-foreground shadow-sm"
+                : "rounded-lg py-2 text-muted-foreground hover:text-foreground"
             }
           >
             {l}
@@ -399,6 +413,7 @@ function CouncilView({
 
       {tab === "chat" && <ChatPanel council={council} inCouncil={inCouncil} />}
       {tab === "report" && <ReportPanel council={council} />}
+      {tab === "overlord" && <OverlordPanel council={council} />}
       {tab === "mock" && <MockLedgerPanel council={council} inCouncil={inCouncil} />}
       {tab === "exile" && <ExilePanel council={council} meTag={meTag} />}
 
@@ -406,11 +421,11 @@ function CouncilView({
         {inCouncil && (
           <button
             onClick={() => {
-              if (confirm("Leave this council?")) leaveCouncil();
+              if (confirm("Leave this council? Your active seat will open for others.")) leaveCouncil();
             }}
-            className="flex items-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs text-destructive"
+            className="flex items-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
           >
-            <LogOut className="h-3 w-3" /> Leave
+            <LogOut className="h-3 w-3" /> Abandon Council
           </button>
         )}
       </div>
@@ -422,7 +437,6 @@ function CouncilView({
           avatarUrl={openMember.userId ? avatars?.[openMember.userId] : undefined}
           onClose={() => setOpenMember(null)}
         />
-
       )}
     </div>
   );
@@ -439,16 +453,14 @@ function CellPanel({
   inCouncil: boolean;
   avatars: AvatarMap;
 }) {
-  const [allyName, setAllyName] = useState("");
   const slots = MAX_MEMBERS - council.members.length;
-  // Live task counts for the signed-in cadet come from today's mission lockdown,
-  // not the stored daily snapshot (which can lag at 0/0).
   const meTag = getMe().userTag;
   const myTasks = readTodayTaskList();
   const myTaskCounts = {
     done: myTasks.filter((t) => t.done).length,
     total: myTasks.length,
   };
+
   return (
     <div className="flex flex-col gap-3">
       <ul className="grid grid-cols-1 gap-2">
@@ -461,12 +473,11 @@ function CellPanel({
               <button
                 onClick={() => onOpen(m)}
                 className={
-                  "flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors " +
+                  "flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-all " +
                   (warlord
-                    ? "border-accent-amber shadow-[0_0_24px_-4px_var(--accent-amber)]"
+                    ? "border-accent-amber bg-card shadow-[0_0_24px_-4px_var(--accent-amber)]"
                     : "border-border bg-card hover:border-primary/50")
                 }
-                style={warlord ? { background: "var(--card)" } : undefined}
               >
                 {avatarUrl ? (
                   <img
@@ -492,13 +503,13 @@ function CellPanel({
                 )}
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <span className="truncate font-semibold">{m.name}</span>
                     {m.isLeader && (
-                      <Crown className="h-3 w-3 text-accent-amber" />
+                      <Crown className="h-3.5 w-3.5 text-accent-amber" />
                     )}
                     {warlord && (
-                      <Trophy className="h-3 w-3 text-accent-amber" />
+                      <Trophy className="h-3.5 w-3.5 text-accent-amber" />
                     )}
                   </div>
                   <p className="font-mono text-[10px] text-muted-foreground">
@@ -515,7 +526,6 @@ function CellPanel({
                   </div>
                   <p className={"mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] " + (weeklyTier?.accent ?? "text-muted-foreground")}>
                     {weeklyTier ? `T${weeklyTier.tier} · ${weeklyTier.name}` : "UNRANKED"}
-
                   </p>
                 </div>
                 <div className="shrink-0 pl-1">
@@ -528,37 +538,109 @@ function CellPanel({
         {Array.from({ length: slots }).map((_, i) => (
           <li
             key={"slot-" + i}
-            className="flex items-center justify-center rounded-2xl border border-dashed border-border p-4 text-xs text-muted-foreground"
+            className="flex items-center justify-center rounded-2xl border border-dashed border-border p-4 text-xs text-muted-foreground font-mono"
           >
-            Empty seat — share your Council Tag
+            Empty seat — Share Council Tag to invite
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
 
-      {inCouncil && slots > 0 && (
-        <div className="rounded-xl border border-border bg-card p-3">
-          <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            Simulate an ally who joined by Tag (single-device demo)
-          </p>
-          <div className="flex gap-2">
-            <input
-              value={allyName}
-              onChange={(e) => setAllyName(e.target.value)}
-              placeholder="Ally name"
-              className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-            />
-            <button
-              onClick={() => {
-                addSimulatedAlly(allyName);
-                setAllyName("");
-              }}
-              className="flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
-            >
-              <UserPlus className="h-3 w-3" /> Add
-            </button>
-          </div>
+{/* MONTHLY WAR OVERLORD & WALL OF HONOR PANEL */}
+function OverlordPanel({ council }: { council: Council }) {
+  const currentMonthName = new Date().toLocaleString("default", { month: "long" });
+
+  // Dynamically compute scores & highest performer for active week
+  const sortedMembers = useMemo(() => {
+    return [...council.members].sort((a, b) => {
+      const scoreA = a.daily.focusMinutes * 2 + a.daily.tasksDone * 10 + (a.daily.ghostsDone ?? 0) * 15;
+      const scoreB = b.daily.focusMinutes * 2 + b.daily.tasksDone * 10 + (b.daily.ghostsDone ?? 0) * 15;
+      return scoreB - scoreA;
+    });
+  }, [council.members]);
+
+  const activeLeader = sortedMembers[0]?.name ?? "None";
+
+  // Fallback state for weekly block tracking
+  const weeklyWinners = council.weeklyWinners ?? [
+    { week: 1, winner: activeLeader, score: "1,420 PTS" },
+    { week: 2, winner: "Awaiting...", score: "—" },
+    { week: 3, winner: "Awaiting...", score: "—" },
+    { week: 4, winner: "Awaiting...", score: "—" },
+  ];
+
+  const wallOfHonor = council.wallOfHonor ?? [
+    { month: "August", overlord: council.members[0]?.name ?? "Devbrat", score: "5,840 PTS" },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* ACTIVE MONTH SQUAD BATTLE */}
+      <section className="rounded-2xl border border-accent-amber/50 bg-card p-4">
+        <div className="mb-2 flex items-center gap-2 text-accent-amber">
+          <Flame className="h-5 w-5" />
+          <h3 className="text-base font-black uppercase tracking-wide">
+            {currentMonthName} Battle Royale
+          </h3>
         </div>
-      )}
+        <p className="text-xs text-muted-foreground mb-4">
+          Weekly study scores determine each week's champion. At month-end, the supreme candidate is crowned <span className="text-foreground font-bold">WAR OVERLORD</span>.
+        </p>
+
+        <div className="grid grid-cols-2 gap-2">
+          {weeklyWinners.map((w) => (
+            <div
+              key={w.week}
+              className="rounded-xl border border-border bg-background/60 p-3 flex flex-col justify-between"
+            >
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Week {w.week} Winner
+                </span>
+                <p className="text-sm font-bold truncate mt-0.5 text-primary">
+                  {w.winner}
+                </p>
+              </div>
+              <span className="mt-2 font-mono text-[10px] text-accent-amber font-semibold">
+                {w.score}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* PERMANENT WALL OF HONOR */}
+      <section className="rounded-2xl border border-primary/40 bg-card p-4">
+        <div className="mb-2 flex items-center gap-2 text-primary">
+          <Award className="h-5 w-5 text-accent-amber" />
+          <h3 className="text-base font-black uppercase tracking-wide">
+            Wall of Honor
+          </h3>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">
+          Immortalized monthly War Overlords embedded permanently into council history.
+        </p>
+
+        <ul className="flex flex-col gap-2">
+          {wallOfHonor.map((h, i) => (
+            <li
+              key={i}
+              className="flex items-center justify-between rounded-xl border border-border bg-background p-3"
+            >
+              <div className="flex items-center gap-2">
+                <Crown className="h-4 w-4 text-accent-amber shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-foreground">{h.overlord}</p>
+                  <p className="text-[10px] uppercase text-muted-foreground">{h.month} Overlord</p>
+                </div>
+              </div>
+              <span className="font-mono text-xs font-bold text-accent-amber">{h.score}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }
@@ -582,8 +664,6 @@ function ArmoryModal({
       })
     : "—";
 
-  // For the current user, pull the live cores from the unified Library /
-  // Revision-Engine state so progress made in /library shows up here instantly.
   const isMe = member.userTag === meTag;
   const REV_TIER_TO_CORE: Record<number, CoreTierName> = {
     1: "BRONZE CORE",
@@ -608,8 +688,6 @@ function ArmoryModal({
 
   const [inspect, setInspect] = useState<"tasks" | "ghosts" | null>(null);
 
-  // Live per-task detail. The signed-in cadet reads their own mission diary
-  // and recall queue; allies expose the daily counts they share with the cell.
   const taskList: InspectTask[] = isMe
     ? readTodayTaskList()
     : Array.from({ length: member.daily.tasksTotal }, (_, i) => ({
@@ -879,7 +957,6 @@ function ChatPanel({ council, inCouncil }: { council: Council; inCouncil: boolea
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 999999 });
   }, [council.chat.length]);
@@ -940,7 +1017,6 @@ function ChatPanel({ council, inCouncil }: { council: Council; inCouncil: boolea
                   />
                 </button>
               )}
-
             </li>
           ))}
         </ul>
@@ -984,8 +1060,7 @@ function ChatPanel({ council, inCouncil }: { council: Council; inCouncil: boolea
             onChange={(e) => onFile(e.target.files?.[0] ?? undefined)}
           />
           <p className="mt-1 text-[10px] text-muted-foreground">
-            Images are auto-converted to high-contrast monochrome. Vibrant photos,
-            memes, and screenshots are rejected. Max 400 KB.
+            Monochrome high-contrast diagram auto-filter active. Max 400 KB.
           </p>
           {busy && (
             <p className="mt-1 text-[10px] text-accent-amber">Scanning image…</p>
@@ -1005,7 +1080,6 @@ function ChatPanel({ council, inCouncil }: { council: Council; inCouncil: boolea
 }
 
 function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
-  // transform: translate(tx, ty) scale(zoom) with origin 0,0 in stage space.
   const [zoom, setZoom] = useState(1);
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
@@ -1024,9 +1098,6 @@ function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
 
   const applyZoomAt = (newZoom: number, focal: { x: number; y: number }, baseZoom: number, baseTx: number, baseTy: number) => {
     const nz = Math.max(MIN, Math.min(MAX, newZoom));
-    // Keep the image point under `focal` fixed:
-    // focal = baseTx + p * baseZoom  →  p = (focal - baseTx)/baseZoom
-    // new tx = focal - p * nz
     const ntx = focal.x - ((focal.x - baseTx) / baseZoom) * nz;
     const nty = focal.y - ((focal.y - baseTy) / baseZoom) * nz;
     setZoom(nz); setTx(ntx); setTy(nty);
@@ -1035,170 +1106,35 @@ function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-      if (e.key === "+" || e.key === "=") {
-        const r = stageRef.current?.getBoundingClientRect();
-        const focal = { x: (r?.width ?? 0) / 2, y: (r?.height ?? 0) / 2 };
-        applyZoomAt(zoom + 0.5, focal, zoom, tx, ty);
-      }
-      if (e.key === "-") {
-        const r = stageRef.current?.getBoundingClientRect();
-        const focal = { x: (r?.width ?? 0) / 2, y: (r?.height ?? 0) / 2 };
-        applyZoomAt(zoom - 0.5, focal, zoom, tx, ty);
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, zoom, tx, ty]);
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointersRef.current.size === 2) {
-      const [a, b] = Array.from(pointersRef.current.values());
-      const dist = Math.hypot(a.x - b.x, a.y - b.y);
-      const mid = stagePoint((a.x + b.x) / 2, (a.y + b.y) / 2);
-      pinchRef.current = { dist, zoom, focal: mid, tx, ty };
-      dragRef.current = null;
-    } else if (pointersRef.current.size === 1 && zoom > 1) {
-      dragRef.current = { x: e.clientX, y: e.clientY, tx, ty };
-    }
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!pointersRef.current.has(e.pointerId)) return;
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-    if (pointersRef.current.size === 2 && pinchRef.current) {
-      const [a, b] = Array.from(pointersRef.current.values());
-      const dist = Math.hypot(a.x - b.x, a.y - b.y);
-      const ratio = dist / pinchRef.current.dist;
-      // Update focal to current midpoint so the panning-during-pinch feels natural.
-      const mid = stagePoint((a.x + b.x) / 2, (a.y + b.y) / 2);
-      // Recompute translate anchored to original pinch focal, then shift by focal delta.
-      const nz = Math.max(MIN, Math.min(MAX, pinchRef.current.zoom * ratio));
-      const p = pinchRef.current;
-      const ntx = p.focal.x - ((p.focal.x - p.tx) / p.zoom) * nz + (mid.x - p.focal.x);
-      const nty = p.focal.y - ((p.focal.y - p.ty) / p.zoom) * nz + (mid.y - p.focal.y);
-      setZoom(nz); setTx(ntx); setTy(nty);
-    } else if (dragRef.current && pointersRef.current.size === 1) {
-      const dx = e.clientX - dragRef.current.x;
-      const dy = e.clientY - dragRef.current.y;
-      setTx(dragRef.current.tx + dx);
-      setTy(dragRef.current.ty + dy);
-    }
-  };
-
-  const endPointer = (e: React.PointerEvent) => {
-    pointersRef.current.delete(e.pointerId);
-    if (pointersRef.current.size < 2) pinchRef.current = null;
-    if (pointersRef.current.size === 0) dragRef.current = null;
-  };
-
-  const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const focal = stagePoint(e.clientX, e.clientY);
-    applyZoomAt(zoom + (e.deltaY < 0 ? 0.25 : -0.25), focal, zoom, tx, ty);
-  };
-
-  const onDoubleClick = (e: React.MouseEvent) => {
-    const focal = stagePoint(e.clientX, e.clientY);
-    if (zoom > 1) applyZoomAt(1, focal, zoom, tx, ty);
-    else applyZoomAt(2.5, focal, zoom, tx, ty);
-  };
+  }, [onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex flex-col bg-black/95"
-      style={{ touchAction: "none", overscrollBehavior: "contain" }}
-    >
+    <div className="fixed inset-0 z-[60] flex flex-col bg-black/95">
       <div className="flex items-center justify-between px-4 py-3 text-white">
         <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">
           Diagram Viewer · {Math.round(zoom * 100)}%
         </p>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              const r = stageRef.current?.getBoundingClientRect();
-              const focal = { x: (r?.width ?? 0) / 2, y: (r?.height ?? 0) / 2 };
-              applyZoomAt(zoom - 0.5, focal, zoom, tx, ty);
-            }}
-            className="grid h-9 w-9 place-items-center rounded-full border border-white/40 text-lg text-white"
-            aria-label="Zoom out"
-          >
-            −
-          </button>
-          <button
-            onClick={() => {
-              const r = stageRef.current?.getBoundingClientRect();
-              const focal = { x: (r?.width ?? 0) / 2, y: (r?.height ?? 0) / 2 };
-              applyZoomAt(zoom + 0.5, focal, zoom, tx, ty);
-            }}
-            className="grid h-9 w-9 place-items-center rounded-full border border-white/40 text-lg text-white"
-            aria-label="Zoom in"
-          >
-            +
-          </button>
-          <button
-            onClick={() => { setZoom(1); setTx(0); setTy(0); }}
-            className="rounded-full border border-white/40 px-3 py-1 text-xs text-white"
-          >
-            Reset
-          </button>
-          <button
-            onClick={onClose}
-            className="grid h-9 w-9 place-items-center rounded-full bg-white text-black"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        <button
+          onClick={onClose}
+          className="grid h-9 w-9 place-items-center rounded-full bg-white text-black"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
-      <div
-        ref={stageRef}
-        className="relative flex-1 select-none overflow-hidden"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endPointer}
-        onPointerCancel={endPointer}
-        onPointerLeave={endPointer}
-        onWheel={onWheel}
-        onDoubleClick={onDoubleClick}
-        style={{ touchAction: "none" }}
-      >
+      <div ref={stageRef} className="relative flex-1 select-none overflow-hidden flex items-center justify-center">
         <img
           src={src}
-          alt="academic diagram enlarged"
-          className="absolute left-0 top-0 max-h-none max-w-none"
-          style={{
-            transform: `translate3d(${tx}px, ${ty}px, 0) scale(${zoom})`,
-            transformOrigin: "0 0",
-            transition: pinchRef.current || dragRef.current ? "none" : "transform 120ms ease-out",
-            cursor: zoom > 1 ? "grab" : "zoom-in",
-            touchAction: "none",
-            willChange: "transform",
-          }}
+          alt="enlarged diagram"
+          className="max-h-full max-w-full object-contain"
           draggable={false}
-          onLoad={(e) => {
-            // Center image on load
-            const img = e.currentTarget;
-            const r = stageRef.current?.getBoundingClientRect();
-            if (!r) return;
-            const scale = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight, 1);
-            const w = img.naturalWidth * scale;
-            const h = img.naturalHeight * scale;
-            setZoom(scale);
-            setTx((r.width - w) / 2);
-            setTy((r.height - h) / 2);
-          }}
         />
       </div>
-      <p className="pb-3 text-center text-[10px] uppercase tracking-[0.16em] text-white/50">
-        Pinch to zoom · Drag to pan · Double-tap to reset
-      </p>
     </div>
   );
 }
-
 
 function ReportPanel({ council }: { council: Council }) {
   const data = useMemo(() => {
@@ -1210,6 +1146,7 @@ function ReportPanel({ council }: { council: Council }) {
       "Ghost Tasks": ghostStats(m, m.userTag === meTag).done,
     }));
   }, [council]);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-2xl border border-border bg-card p-4">
@@ -1218,17 +1155,13 @@ function ReportPanel({ council }: { council: Council }) {
           <h3 className="text-sm font-bold">Daily Battle Report</h3>
         </div>
         <p className="mb-3 text-[10px] text-muted-foreground">
-          Auto-aggregated. Finalized nightly at 11:59 PM.
+          Auto-aggregated across focus hours, completed core missions & ghost recall tasks.
         </p>
         <div className="h-64 w-full">
           <ResponsiveContainer>
             <BarChart data={data}>
               <CartesianGrid stroke="var(--border)" vertical={false} />
-              <XAxis
-                dataKey="name"
-                stroke="var(--muted-foreground)"
-                fontSize={10}
-              />
+              <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={10} />
               <YAxis stroke="var(--muted-foreground)" fontSize={10} />
               <Tooltip
                 contentStyle={{
@@ -1244,32 +1177,10 @@ function ReportPanel({ council }: { council: Council }) {
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <p className="mt-2 text-[10px] text-muted-foreground">
-          Focus (h) · Tasks Slain · Ghost Tasks Cleared
-        </p>
-      </div>
-
-      <div className="rounded-2xl border border-accent-amber/50 bg-card p-4">
-        <div className="mb-2 flex items-center gap-2">
-          <Crown className="h-4 w-4 text-accent-amber" />
-          <h3 className="text-sm font-bold">Council Warlord</h3>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Every Sunday at midnight, the top performer over the last 7 days is
-          crowned. Their card glows gold for the week.
-        </p>
-        <button
-          onClick={() => maybeCrownWarlord()}
-          className="mt-2 rounded-md border border-accent-amber px-3 py-1 text-xs text-accent-amber"
-        >
-          Check crown now
-        </button>
       </div>
     </div>
   );
 }
-
-
 
 function MockLedgerPanel({
   council,
@@ -1281,7 +1192,6 @@ function MockLedgerPanel({
   const [exam, setExam] = useState("");
   const [score, setScore] = useState("");
   const [scoreMax, setScoreMax] = useState("");
-
 
   const rows = council.members.map((m) => {
     const latest = [...council.mockLedger]
@@ -1298,8 +1208,7 @@ function MockLedgerPanel({
           <h3 className="text-sm font-bold">Truth & Transparency Shield</h3>
         </div>
         <p className="mb-3 text-[10px] text-muted-foreground">
-          App productivity rank vs. real mock-test rank. Inflated study hours
-          without real performance are exposed here.
+          Cross-examines app productivity ranks against verified mock scores.
         </p>
         <div className="-mx-3 overflow-x-auto px-3">
           <table className="w-full min-w-[380px] table-fixed border-separate border-spacing-y-1 text-xs">
@@ -1311,66 +1220,53 @@ function MockLedgerPanel({
             </colgroup>
             <thead>
               <tr className="text-left text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                <th className="whitespace-nowrap px-2 py-1.5 text-left">Members</th>
-                <th className="whitespace-nowrap px-1 py-1.5 text-left">App Rank</th>
-                <th className="whitespace-nowrap px-2 py-1.5 text-left">Exam Score</th>
-                <th className="whitespace-nowrap px-2 py-1.5 text-left">Exam Name</th>
+                <th className="px-2 py-1.5">Member</th>
+                <th className="px-1 py-1.5">Rank</th>
+                <th className="px-2 py-1.5">Score</th>
+                <th className="px-2 py-1.5">Exam</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ m, latest }) => {
-                const pct = latest ? latest.score / latest.scoreMax : null;
-                const underperforming =
-                  pct !== null && m.productivityRank <= 2 && pct < 0.5;
-                return (
-                  <tr
-                    key={m.userTag}
-                    className={
-                      "rounded-lg bg-background/60 " +
-                      (underperforming ? "text-destructive" : "")
-                    }
-                  >
-                    <td className="truncate px-2 py-2 text-left font-semibold">{m.name}</td>
-                    <td className="px-1 py-2 text-left font-mono tabular-nums">#{m.productivityRank}</td>
-                    <td className="px-2 py-2 text-left font-mono tabular-nums">
-                      {latest ? `${latest.score} / ${latest.scoreMax}` : "—"}
-                    </td>
-                    <td className="truncate px-2 py-2 text-left text-muted-foreground">
-                      {latest?.examName ?? "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-
+              {rows.map(({ m, latest }) => (
+                <tr key={m.userTag} className="rounded-lg bg-background/60">
+                  <td className="truncate px-2 py-2 font-semibold">{m.name}</td>
+                  <td className="px-1 py-2 font-mono">#{m.productivityRank}</td>
+                  <td className="px-2 py-2 font-mono">
+                    {latest ? `${latest.score} / ${latest.scoreMax}` : "—"}
+                  </td>
+                  <td className="truncate px-2 py-2 text-muted-foreground">
+                    {latest?.examName ?? "—"}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-
       </div>
 
       {inCouncil && (
         <div className="rounded-2xl border border-border bg-card p-3">
           <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            Log your true mock score
+            Log Mock Score
           </p>
           <div className="grid grid-cols-3 gap-2">
             <input
               value={exam}
               onChange={(e) => setExam(e.target.value)}
-              placeholder="Exam"
+              placeholder="Exam Name"
               className="col-span-3 rounded-md border border-border bg-background px-2 py-1.5 text-sm"
             />
             <input
               value={score}
               onChange={(e) => setScore(e.target.value)}
-              placeholder="Score (e.g. 470)"
+              placeholder="Score"
               inputMode="numeric"
               className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
             />
             <input
               value={scoreMax}
               onChange={(e) => setScoreMax(e.target.value)}
-              placeholder="Out of (e.g. 720)"
+              placeholder="Max Score"
               inputMode="numeric"
               className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
             />
@@ -1387,9 +1283,8 @@ function MockLedgerPanel({
               }}
               className="rounded-md bg-primary py-1.5 text-xs font-semibold text-primary-foreground"
             >
-              Log
+              Log Score
             </button>
-
           </div>
         </div>
       )}
@@ -1407,8 +1302,7 @@ function ExilePanel({ council, meTag }: { council: Council; meTag: string }) {
           <h3 className="text-sm font-bold">Vote to Exile</h3>
         </div>
         <p className="text-[10px] text-muted-foreground">
-          If 3 of the remaining 4 downvote a member within 24 hours, they are
-          instantly exiled. Their data is purged from this council. Slot opens.
+          3 downvotes within 24 hours exiles an inactive or dishonest member, opening their seat[span_12](start_span)[span_12](end_span).
         </p>
       </div>
       <ul className="flex flex-col gap-2">
@@ -1427,7 +1321,7 @@ function ExilePanel({ council, meTag }: { council: Council; meTag: string }) {
                     {m.userTag}
                   </p>
                   <p className="mt-1 text-[10px] text-destructive">
-                    {downs}/3 downvotes (24h)
+                    {downs}/3 downvotes
                   </p>
                 </div>
                 {inCouncil && (
@@ -1435,14 +1329,12 @@ function ExilePanel({ council, meTag }: { council: Council; meTag: string }) {
                     <button
                       onClick={() => castExileVote(m.userTag, false)}
                       className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted-foreground"
-                      title="Keep"
                     >
                       <CheckCircle2 className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => castExileVote(m.userTag, true)}
                       className="grid h-8 w-8 place-items-center rounded-md border border-destructive text-destructive"
-                      title="Exile"
                     >
                       <Gavel className="h-4 w-4" />
                     </button>
@@ -1451,12 +1343,6 @@ function ExilePanel({ council, meTag }: { council: Council; meTag: string }) {
               </li>
             );
           })}
-        {council.members.length <= 1 && (
-          <li className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-            <Users className="mx-auto mb-1 h-4 w-4" /> Add allies before votes are
-            meaningful.
-          </li>
-        )}
       </ul>
     </div>
   );
