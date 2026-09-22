@@ -38,7 +38,6 @@ export type MockScore = {
   loggedAt: number;
 };
 
-
 export type ExileVote = {
   targetTag: string;
   voterTag: string;
@@ -65,6 +64,19 @@ export type Member = {
   warlordUntil?: number; // ms epoch; if in the future -> gold aura
 };
 
+// --- NEW TYPES FOR MONTHLY OVERLORD & WALL OF HONOR ---
+export interface WeeklyWinner {
+  week: number;
+  winner: string;
+  score: string;
+}
+
+export interface WallOfHonorEntry {
+  month: string;
+  overlord: string;
+  score: string;
+}
+
 export type Council = {
   councilTag: string; // #CNL-XXXX
   name: string;
@@ -75,10 +87,11 @@ export type Council = {
   votes: ExileVote[];
   lastDailyReportAt?: number;
   lastWarlordAt?: number;
+  weeklyWinners?: WeeklyWinner[];
+  wallOfHonor?: WallOfHonorEntry[];
 };
 
 export type Me = { userTag: string; name: string; userId?: string };
-
 
 const K_ME = "ftlb.council.me.v1";
 const K_COUNCIL = "ftlb.council.v1";
@@ -157,8 +170,6 @@ export function setMyUserId(userId: string | null | undefined) {
   emit();
 }
 
-
-
 // -------- Council --------
 export function getCouncil(): Council | null {
   if (typeof window === "undefined") return null;
@@ -191,7 +202,6 @@ function defaultDaily(): MemberDailyStats {
   };
 }
 
-const SAMPLE_CORES = ["Electrostatics", "Kinematics", "Organic", "Trigonometry"];
 // Global progression rules — tiers/ranks map 1:1 to app level bands (0..14).
 const TIERS = ["Recruit", "Squire", "Knight", "Warlord", "Sovereign"];
 const CHAR_RANKS = [
@@ -220,39 +230,10 @@ export function deriveProgression(daily: Pick<MemberDailyStats, "focusMinutes" |
   return { tier: TIERS[tierIdx], characterRank: CHAR_RANKS[rankIdx] };
 }
 
-function randomDaily(): MemberDailyStats {
-  const cores: Record<string, string> = {};
-  const loops: Record<string, number> = {};
-  SAMPLE_CORES.forEach((c, idx) => {
-    cores[c] = CORE_TIERS[Math.min(CORE_TIERS.length - 1, idx)];
-    loops[c] = idx === 0 ? 2 : idx === 1 ? 1 : 0;
-  });
-  const totalT = 4 + Math.floor(Math.random() * 6);
-  const wakeHour = 5 + Math.floor(Math.random() * 3);
-  const wake = new Date();
-  wake.setHours(wakeHour, Math.floor(Math.random() * 60), 0, 0);
-  const base = {
-    focusMinutes: 60 + Math.floor(Math.random() * 300),
-    tasksDone: Math.floor(Math.random() * (totalT + 1)),
-    revisionCoresCleared: Math.floor(Math.random() * 5),
-  };
-  const prog = deriveProgression(base);
-  return {
-    wakeUpAt: wake.getTime(),
-    ...base,
-    tasksTotal: totalT,
-    chapterCores: cores,
-    coreLoops: loops,
-    ...prog,
-  };
-}
-
-
-
 function recomputeRanks(c: Council) {
   const sorted = [...c.members].sort((a, b) => {
-    const sa = a.daily.focusMinutes + a.daily.tasksDone * 30 + a.daily.revisionCoresCleared * 45;
-    const sb = b.daily.focusMinutes + b.daily.tasksDone * 30 + b.daily.revisionCoresCleared * 45;
+    const sa = a.daily.focusMinutes + a.daily.tasksDone * 30 + (a.daily.ghostsDone ?? 0) * 15;
+    const sb = b.daily.focusMinutes + b.daily.tasksDone * 30 + (b.daily.ghostsDone ?? 0) * 15;
     return sb - sa;
   });
   sorted.forEach((m, i) => {
@@ -271,7 +252,6 @@ export function forgeCouncil(name: string): Council {
       {
         userTag: me.userTag,
         ...(me.userId ? { userId: me.userId } : {}),
-
         name: me.name,
         joinedAt: Date.now(),
         isLeader: true,
@@ -284,7 +264,7 @@ export function forgeCouncil(name: string): Council {
         id: "sys-" + Date.now(),
         memberTag: "#SYSTEM",
         kind: "text",
-        body: `Council forged. Share ${""} your Council Tag with real-life allies only.`,
+        body: `Council forged. Share your Council Tag or Player Tag with real-life allies.`,
         at: Date.now(),
       },
     ],
@@ -295,45 +275,51 @@ export function forgeCouncil(name: string): Council {
   return c;
 }
 
+// Dynamic Search & Join by Tag (#CNL-XXXX or #USR-XXXX)
 export function joinCouncilByTag(tag: string): { ok: boolean; error?: string } {
   const clean = tag.trim().toUpperCase();
+  const formattedTag = clean.startsWith("#") ? clean : `#${clean}`;
   const c = getCouncil();
-  if (!c) return { ok: false, error: "No council with that tag exists on this device." };
-  if (clean !== c.councilTag.toUpperCase())
-    return { ok: false, error: "Tag mismatch. Verify with the Leader." };
+  
+  if (!c) {
+    return { ok: false, error: "No active council found with that tag on this network." };
+  }
+
+  // Check if searching by Council Tag OR searching by an active Member's Player Tag
+  const isCouncilMatch = c.councilTag.toUpperCase() === formattedTag;
+  const isMemberMatch = c.members.some((m) => m.userTag.toUpperCase() === formattedTag);
+
+  if (!isCouncilMatch && !isMemberMatch) {
+    return { ok: false, error: "Tag mismatch. Verify the Tag with your alliance Leader." };
+  }
+
   const me = getMe();
-  if (c.members.some((m) => m.userTag === me.userTag))
-    return { ok: false, error: "You are already in this council." };
-  if (c.members.length >= MAX)
-    return { ok: false, error: "Council is full. Max 5 members." };
+  if (c.members.some((m) => m.userTag === me.userTag)) {
+    return { ok: false, error: "You are already a member of this council." };
+  }
+
+  if (c.members.length >= MAX) {
+    return { ok: false, error: "Council is full (Maximum 5 seats occupied)." };
+  }
+
   c.members.push({
     userTag: me.userTag,
     ...(me.userId ? { userId: me.userId } : {}),
-
     name: me.name,
     joinedAt: Date.now(),
     isLeader: false,
     productivityRank: c.members.length + 1,
     daily: defaultDaily(),
   });
-  save(c);
-  return { ok: true };
-}
 
-// For demo: add a simulated ally (still a "real friend" the leader added by tag).
-// Represents another device's user; keeps the ecosystem playable on one device.
-export function addSimulatedAlly(name: string): { ok: boolean; error?: string } {
-  const c = getCouncil();
-  if (!c) return { ok: false, error: "No council." };
-  if (c.members.length >= MAX) return { ok: false, error: "Council is full (5/5)." };
-  c.members.push({
-    userTag: makeUserTag(),
-    name: name.trim() || "Ally",
-    joinedAt: Date.now(),
-    isLeader: false,
-    productivityRank: c.members.length + 1,
-    daily: randomDaily(),
+  c.chat.push({
+    id: "sys-" + Date.now(),
+    memberTag: "#SYSTEM",
+    kind: "text",
+    body: `${me.name} (${me.userTag}) joined the War Council!`,
+    at: Date.now(),
   });
+
   recomputeRanks(c);
   save(c);
   return { ok: true };
@@ -403,7 +389,6 @@ export async function processAcademicImage(file: File): Promise<ImageCheck> {
 
   const img = ctx.getImageData(0, 0, w, h);
   const data = img.data;
-  // Sample every ~50th pixel for saturation analysis
   let vividCount = 0;
   let samples = 0;
   for (let i = 0; i < data.length; i += 4 * 50) {
@@ -418,17 +403,13 @@ export async function processAcademicImage(file: File): Promise<ImageCheck> {
   if (vividRatio > 0.12) {
     return {
       ok: false,
-      error:
-        "Only clear, high-contrast academic diagrams or proofs are allowed.",
+      error: "Only clear, high-contrast academic diagrams or proofs are allowed.",
     };
   }
 
-  // Convert to high-contrast monochrome (document scanner style)
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i], g = data[i + 1], b = data[i + 2];
-    // Luma
     let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    // High-contrast S-curve around ~150
     y = Math.max(0, Math.min(255, (y - 150) * 1.9 + 200));
     data[i] = data[i + 1] = data[i + 2] = y;
   }
@@ -469,20 +450,17 @@ export function logMockScore(input: { examName: string; score: number; scoreMax:
   save(c);
 }
 
-
 // -------- Vote to exile --------
 export function castExileVote(targetTag: string, down: boolean) {
   const c = getCouncil();
   const me = getMe();
   if (!c) return;
   if (targetTag === me.userTag) return;
-  // remove any previous vote from me on this target in the last 24h
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   c.votes = c.votes.filter(
     (v) => !(v.voterTag === me.userTag && v.targetTag === targetTag) && v.at >= cutoff,
   );
   c.votes.push({ targetTag, voterTag: me.userTag, down, at: Date.now() });
-  // check kick threshold: 3 of remaining 4 downvotes in a 24h window
   const others = c.members.filter((m) => m.userTag !== targetTag);
   const downs = c.votes.filter(
     (v) => v.targetTag === targetTag && v.down && v.at >= cutoff,
@@ -510,20 +488,19 @@ export function activeDownVotes(targetTag: string): number {
   return c.votes.filter((v) => v.targetTag === targetTag && v.down && v.at >= cutoff).length;
 }
 
-// -------- Warlord (Sunday midnight) --------
+// -------- Warlord & Overlord Crowning --------
 export function maybeCrownWarlord() {
   const c = getCouncil();
   if (!c || c.members.length === 0) return;
   const now = new Date();
-  // Find most-recent past Sunday 00:00
   const sun = new Date(now);
   const day = sun.getDay(); // 0 Sun..6 Sat
   sun.setHours(0, 0, 0, 0);
   sun.setDate(sun.getDate() - day);
   if (c.lastWarlordAt && c.lastWarlordAt >= sun.getTime()) return;
   const winner = [...c.members].sort((a, b) => {
-    const sa = a.daily.focusMinutes + a.daily.tasksDone * 30 + a.daily.revisionCoresCleared * 45;
-    const sb = b.daily.focusMinutes + b.daily.tasksDone * 30 + b.daily.revisionCoresCleared * 45;
+    const sa = a.daily.focusMinutes * 2 + a.daily.tasksDone * 10 + (a.daily.ghostsDone ?? 0) * 15;
+    const sb = b.daily.focusMinutes * 2 + b.daily.tasksDone * 10 + (b.daily.ghostsDone ?? 0) * 15;
     return sb - sa;
   })[0];
   c.members.forEach((m) => (m.warlordUntil = undefined));
