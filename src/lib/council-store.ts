@@ -1,8 +1,9 @@
-// THE WAR COUNCIL — localStorage store for the multiplayer accountability cell.
+import { supabase } from "@/integrations/supabase/client";
+
+// THE WAR COUNCIL — Supabase-backed store for the multiplayer accountability cell.
 // Real-life friends only: no random matchmaking, no public directories.
 // A single user can create/join exactly ONE council; max 5 members per council.
 
-// Canonical 5-tier core evolution names — enforced app-wide.
 export const CORE_TIERS = [
   "BRONZE CORE",
   "IRON CORE",
@@ -13,20 +14,17 @@ export const CORE_TIERS = [
 export type CoreTier = (typeof CORE_TIERS)[number];
 
 export type MemberDailyStats = {
-  wakeUpAt: number | null; // ms epoch of today's wake-up
+  wakeUpAt: number | null;
   focusMinutes: number;
   tasksDone: number;
   tasksTotal: number;
   revisionCoresCleared: number;
-  // Ghost-task accountability: completed vs assigned for the day.
   ghostsDone?: number;
   ghostsTotal?: number;
-  // e.g. { "Electrostatics": "PLATINUM CORE" }
   chapterCores: Record<string, string>;
-  // completed re-loop count per chapter (0 = first pass, 1 = one re-loop, ...)
   coreLoops?: Record<string, number>;
-  tier: string; // e.g. "Sovereign"
-  characterRank: string; // e.g. "Field Marshal"
+  tier: string;
+  characterRank: string;
 };
 
 export type MockScore = {
@@ -49,22 +47,21 @@ export type ChatMessage = {
   id: string;
   memberTag: string;
   kind: "text" | "image";
-  body: string; // text or grayscale data URL
+  body: string;
   at: number;
 };
 
 export type Member = {
   userTag: string; // #USR-XXXX
-  userId?: string; // Supabase auth user id (when signed in) — used to sync avatars
+  userId?: string;
   name: string;
   joinedAt: number;
   isLeader: boolean;
-  productivityRank: number; // in-app leaderboard rank (1..5)
+  productivityRank: number;
   daily: MemberDailyStats;
-  warlordUntil?: number; // ms epoch; if in the future -> gold aura
+  warlordUntil?: number;
 };
 
-// --- NEW TYPES FOR MONTHLY OVERLORD & WALL OF HONOR ---
 export interface WeeklyWinner {
   week: number;
   winner: string;
@@ -78,6 +75,7 @@ export interface WallOfHonorEntry {
 }
 
 export type Council = {
+  id?: string;
   councilTag: string; // #CNL-XXXX
   name: string;
   createdAt: number;
@@ -132,6 +130,7 @@ export function getMe(): Me {
   localStorage.setItem(K_ME, JSON.stringify(me));
   return me;
 }
+
 export function setMyName(name: string) {
   const me = getMe();
   const next = { ...me, name: name.trim() || me.name };
@@ -147,7 +146,6 @@ export function setMyName(name: string) {
   emit();
 }
 
-/** Link the local council identity to the signed-in Supabase user (for avatar sync). */
 export function setMyUserId(userId: string | null | undefined) {
   if (typeof window === "undefined") return;
   const me = getMe();
@@ -170,7 +168,7 @@ export function setMyUserId(userId: string | null | undefined) {
   emit();
 }
 
-// -------- Council --------
+// -------- Council Storage --------
 export function getCouncil(): Council | null {
   if (typeof window === "undefined") return null;
   try {
@@ -202,7 +200,6 @@ function defaultDaily(): MemberDailyStats {
   };
 }
 
-// Global progression rules — tiers/ranks map 1:1 to app level bands (0..14).
 const TIERS = ["Recruit", "Squire", "Knight", "Warlord", "Sovereign"];
 const CHAR_RANKS = [
   "Cadet",
@@ -222,7 +219,6 @@ const CHAR_RANKS = [
   "Field Marshal",
 ];
 
-// Deterministic derivation from measured effort — no random placeholders.
 export function deriveProgression(daily: Pick<MemberDailyStats, "focusMinutes" | "tasksDone" | "revisionCoresCleared">) {
   const score = daily.focusMinutes + daily.tasksDone * 30 + daily.revisionCoresCleared * 45;
   const rankIdx = Math.min(CHAR_RANKS.length - 1, Math.floor(score / 60));
@@ -242,16 +238,24 @@ function recomputeRanks(c: Council) {
   });
 }
 
-export function forgeCouncil(name: string): Council {
+// -------- SUPABASE MULTIPLAYER CONNECTORS --------
+
+export async function forgeCouncil(name: string): Promise<Council> {
   const me = getMe();
+  const councilTag = makeCouncilTag();
+  const councilName = name.trim() || "The War Council";
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Create locally
   const c: Council = {
-    councilTag: makeCouncilTag(),
-    name: name.trim() || "The War Council",
+    councilTag,
+    name: councilName,
     createdAt: Date.now(),
     members: [
       {
         userTag: me.userTag,
-        ...(me.userId ? { userId: me.userId } : {}),
+        ...(user?.id ? { userId: user.id } : {}),
         name: me.name,
         joinedAt: Date.now(),
         isLeader: true,
@@ -271,57 +275,171 @@ export function forgeCouncil(name: string): Council {
     mockLedger: [],
     votes: [],
   };
+
+  // Sync to Remote Database
+  if (user) {
+    const { data: dbCouncil } = await supabase
+      .from("councils")
+      .insert([{ council_tag: councilTag, name: councilName, created_by: user.id }])
+      .select()
+      .single();
+
+    if (dbCouncil) {
+      c.id = dbCouncil.id;
+      await supabase.from("council_members").insert([
+        {
+          council_id: dbCouncil.id,
+          user_id: user.id,
+          user_tag: me.userTag,
+          name: me.name,
+          is_leader: true,
+          daily_stats: defaultDaily(),
+        },
+      ]);
+    }
+  }
+
   save(c);
   return c;
 }
 
-// Dynamic Search & Join by Tag (#CNL-XXXX or #USR-XXXX)
-export function joinCouncilByTag(tag: string): { ok: boolean; error?: string } {
+export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; error?: string }> {
   const clean = tag.trim().toUpperCase();
   const formattedTag = clean.startsWith("#") ? clean : `#${clean}`;
-  const c = getCouncil();
-  
-  if (!c) {
-    return { ok: false, error: "No active council found with that tag on this network." };
-  }
-
-  // Check if searching by Council Tag OR searching by an active Member's Player Tag
-  const isCouncilMatch = c.councilTag.toUpperCase() === formattedTag;
-  const isMemberMatch = c.members.some((m) => m.userTag.toUpperCase() === formattedTag);
-
-  if (!isCouncilMatch && !isMemberMatch) {
-    return { ok: false, error: "Tag mismatch. Verify the Tag with your alliance Leader." };
-  }
-
   const me = getMe();
-  if (c.members.some((m) => m.userTag === me.userTag)) {
-    return { ok: false, error: "You are already a member of this council." };
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // 1. Check Supabase Remote Database
+  let targetCouncilId: string | null = null;
+  let targetCouncilTag: string = formattedTag;
+  let targetCouncilName: string = "War Council";
+
+  const { data: matchedCouncil } = await supabase
+    .from("councils")
+    .select("id, council_tag, name")
+    .eq("council_tag", formattedTag)
+    .maybeSingle();
+
+  if (matchedCouncil) {
+    targetCouncilId = matchedCouncil.id;
+    targetCouncilTag = matchedCouncil.council_tag;
+    targetCouncilName = matchedCouncil.name;
+  } else {
+    // Search by member tag
+    const { data: memberMatch } = await supabase
+      .from("council_members")
+      .select("council_id")
+      .eq("user_tag", formattedTag)
+      .maybeSingle();
+
+    if (memberMatch) {
+      const { data: parentCouncil } = await supabase
+        .from("councils")
+        .select("id, council_tag, name")
+        .eq("id", memberMatch.council_id)
+        .maybeSingle();
+
+      if (parentCouncil) {
+        targetCouncilId = parentCouncil.id;
+        targetCouncilTag = parentCouncil.council_tag;
+        targetCouncilName = parentCouncil.name;
+      }
+    }
   }
 
-  if (c.members.length >= MAX) {
+  // 2. Fallback to Local Storage check if Supabase didn't match
+  if (!targetCouncilId) {
+    const localC = getCouncil();
+    if (
+      localC &&
+      (localC.councilTag.toUpperCase() === formattedTag ||
+        localC.members.some((m) => m.userTag.toUpperCase() === formattedTag))
+    ) {
+      if (localC.members.some((m) => m.userTag === me.userTag)) {
+        return { ok: false, error: "You are already a member of this council." };
+      }
+      if (localC.members.length >= MAX) {
+        return { ok: false, error: "Council is full (Maximum 5 seats occupied)." };
+      }
+
+      localC.members.push({
+        userTag: me.userTag,
+        ...(user?.id ? { userId: user.id } : {}),
+        name: me.name,
+        joinedAt: Date.now(),
+        isLeader: false,
+        productivityRank: localC.members.length + 1,
+        daily: defaultDaily(),
+      });
+
+      recomputeRanks(localC);
+      save(localC);
+      return { ok: true };
+    }
+
+    return { ok: false, error: "No active council found with that tag." };
+  }
+
+  // Check seat limit on Supabase
+  const { data: currentMembers } = await supabase
+    .from("council_members")
+    .select("user_id, user_tag")
+    .eq("council_id", targetCouncilId);
+
+  if (currentMembers && currentMembers.length >= MAX) {
     return { ok: false, error: "Council is full (Maximum 5 seats occupied)." };
   }
 
-  c.members.push({
+  if (currentMembers?.some((m) => m.user_tag === me.userTag || (user && m.user_id === user.id))) {
+    return { ok: false, error: "You are already a member of this council." };
+  }
+
+  // Join in Supabase
+  if (user) {
+    await supabase.from("council_members").insert([
+      {
+        council_id: targetCouncilId,
+        user_id: user.id,
+        user_tag: me.userTag,
+        name: me.name,
+        is_leader: false,
+        daily_stats: defaultDaily(),
+      },
+    ]);
+  }
+
+  // Hydrate local session
+  const newMember: Member = {
     userTag: me.userTag,
-    ...(me.userId ? { userId: me.userId } : {}),
+    ...(user?.id ? { userId: user.id } : {}),
     name: me.name,
     joinedAt: Date.now(),
     isLeader: false,
-    productivityRank: c.members.length + 1,
+    productivityRank: (currentMembers?.length || 0) + 1,
     daily: defaultDaily(),
-  });
+  };
 
-  c.chat.push({
-    id: "sys-" + Date.now(),
-    memberTag: "#SYSTEM",
-    kind: "text",
-    body: `${me.name} (${me.userTag}) joined the War Council!`,
-    at: Date.now(),
-  });
+  const joinedCouncil: Council = {
+    id: targetCouncilId,
+    councilTag: targetCouncilTag,
+    name: targetCouncilName,
+    createdAt: Date.now(),
+    members: [newMember],
+    chat: [
+      {
+        id: "sys-" + Date.now(),
+        memberTag: "#SYSTEM",
+        kind: "text",
+        body: `${me.name} (${me.userTag}) joined the War Council!`,
+        at: Date.now(),
+      },
+    ],
+    mockLedger: [],
+    votes: [],
+  };
 
-  recomputeRanks(c);
-  save(c);
+  save(joinedCouncil);
   return { ok: true };
 }
 
@@ -329,6 +447,15 @@ export function leaveCouncil() {
   const me = getMe();
   const c = getCouncil();
   if (!c) return;
+
+  if (c.id) {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from("council_members").delete().eq("council_id", c.id).eq("user_id", user.id);
+      }
+    });
+  }
+
   c.members = c.members.filter((m) => m.userTag !== me.userTag);
   if (c.members.length === 0) {
     save(null);
@@ -339,6 +466,10 @@ export function leaveCouncil() {
 }
 
 export function dissolveCouncil() {
+  const c = getCouncil();
+  if (c?.id) {
+    supabase.from("councils").delete().eq("id", c.id);
+  }
   save(null);
 }
 
@@ -361,10 +492,6 @@ export function sendChat(text: string) {
 
 export type ImageCheck = { ok: true; dataUrl: string } | { ok: false; error: string };
 
-// Anti-distraction filter:
-// - reject vibrant / high-saturation images (memes, photos, screenshots with heavy color)
-// - reject files > 400 KB
-// - convert survivors to high-contrast monochrome document-scanner grayscale
 export async function processAcademicImage(file: File): Promise<ImageCheck> {
   if (!file.type.startsWith("image/"))
     return { ok: false, error: "Only image files are allowed." };
@@ -494,7 +621,7 @@ export function maybeCrownWarlord() {
   if (!c || c.members.length === 0) return;
   const now = new Date();
   const sun = new Date(now);
-  const day = sun.getDay(); // 0 Sun..6 Sat
+  const day = sun.getDay();
   sun.setHours(0, 0, 0, 0);
   sun.setDate(sun.getDate() - day);
   if (c.lastWarlordAt && c.lastWarlordAt >= sun.getTime()) return;
@@ -525,6 +652,19 @@ export function updateMyDaily(patch: Partial<MemberDailyStats>) {
   if (!m) return;
   m.daily = { ...m.daily, ...patch, ...deriveProgression({ ...m.daily, ...patch }) };
   recomputeRanks(c);
+
+  if (c.id) {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase
+          .from("council_members")
+          .update({ daily_stats: m.daily })
+          .eq("council_id", c.id)
+          .eq("user_id", user.id);
+      }
+    });
+  }
+
   save(c);
 }
 
