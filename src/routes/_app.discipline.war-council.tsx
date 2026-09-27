@@ -177,7 +177,6 @@ function WarCouncilPage() {
             Discipline · Section E
           </p>
           <h1 className="text-2xl leading-tight font-black">The War Council</h1>
-          {/* UPDATED HEADER MOTIVATIONAL LINE */}
           <p className="mt-1 text-sm font-medium italic text-accent-amber/90">
             "Five minds. One fortress. Standard-bearers of iron resolve — we rise together or fall alone."
           </p>
@@ -250,14 +249,14 @@ function NoCouncilView() {
   const [searchTag, setSearchTag] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const handleSearchAndJoin = () => {
+  const handleSearchAndJoin = async () => {
     if (!searchTag.trim()) {
       setError("Please enter a valid Player or Council Tag.");
       return;
     }
     const cleanTag = searchTag.trim().toUpperCase();
     const formattedTag = cleanTag.startsWith("#") ? cleanTag : `#${cleanTag}`;
-    const r = joinCouncilByTag(formattedTag);
+    const r = await joinCouncilByTag(formattedTag);
     if (!r.ok) {
       setError(r.error ?? "No match found for tag.");
     } else {
@@ -267,7 +266,6 @@ function NoCouncilView() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CLASH OF CLANS STYLE SEARCH SYSTEM */}
       <section className="rounded-2xl border border-accent-amber/40 bg-card p-4">
         <div className="mb-2 flex items-center gap-2 text-accent-amber">
           <Search className="h-5 w-5" />
@@ -321,7 +319,6 @@ function NoCouncilView() {
         </button>
       </section>
 
-      {/* UPDATED FOOTER MOTIVATIONAL LINE */}
       <p className="text-center text-[11px] font-semibold tracking-wide text-muted-foreground italic px-4">
         "As iron sharpens iron, so one ally sharpens another. Forge your council, lock your seats, and claim victory."
       </p>
@@ -548,11 +545,9 @@ function CellPanel({
   );
 }
 
-{/* MONTHLY WAR OVERLORD & WALL OF HONOR PANEL */}
 function OverlordPanel({ council }: { council: Council }) {
   const currentMonthName = new Date().toLocaleString("default", { month: "long" });
 
-  // Dynamically compute scores & highest performer for active week
   const sortedMembers = useMemo(() => {
     return [...council.members].sort((a, b) => {
       const scoreA = a.daily.focusMinutes * 2 + a.daily.tasksDone * 10 + (a.daily.ghostsDone ?? 0) * 15;
@@ -563,7 +558,6 @@ function OverlordPanel({ council }: { council: Council }) {
 
   const activeLeader = sortedMembers[0]?.name ?? "None";
 
-  // Fallback state for weekly block tracking
   const weeklyWinners = council.weeklyWinners ?? [
     { week: 1, winner: activeLeader, score: "1,420 PTS" },
     { week: 2, winner: "Awaiting...", score: "—" },
@@ -577,7 +571,6 @@ function OverlordPanel({ council }: { council: Council }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ACTIVE MONTH SQUAD BATTLE */}
       <section className="rounded-2xl border border-accent-amber/50 bg-card p-4">
         <div className="mb-2 flex items-center gap-2 text-accent-amber">
           <Flame className="h-5 w-5" />
@@ -611,7 +604,6 @@ function OverlordPanel({ council }: { council: Council }) {
         </div>
       </section>
 
-      {/* PERMANENT WALL OF HONOR */}
       <section className="rounded-2xl border border-primary/40 bg-card p-4">
         <div className="mb-2 flex items-center gap-2 text-primary">
           <Award className="h-5 w-5 text-accent-amber" />
@@ -1081,27 +1073,7 @@ function ChatPanel({ council, inCouncil }: { council: Council; inCouncil: boolea
 
 function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
   const [zoom, setZoom] = useState(1);
-  const [tx, setTx] = useState(0);
-  const [ty, setTy] = useState(0);
   const stageRef = useRef<HTMLDivElement>(null);
-  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const pinchRef = useRef<{ dist: number; zoom: number; focal: { x: number; y: number }; tx: number; ty: number } | null>(null);
-  const dragRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
-
-  const MIN = 0.2;
-  const MAX = 8;
-
-  const stagePoint = (clientX: number, clientY: number) => {
-    const r = stageRef.current?.getBoundingClientRect();
-    return { x: clientX - (r?.left ?? 0), y: clientY - (r?.top ?? 0) };
-  };
-
-  const applyZoomAt = (newZoom: number, focal: { x: number; y: number }, baseZoom: number, baseTx: number, baseTy: number) => {
-    const nz = Math.max(MIN, Math.min(MAX, newZoom));
-    const ntx = focal.x - ((focal.x - baseTx) / baseZoom) * nz;
-    const nty = focal.y - ((focal.y - baseTy) / baseZoom) * nz;
-    setZoom(nz); setTx(ntx); setTy(nty);
-  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1302,7 +1274,7 @@ function ExilePanel({ council, meTag }: { council: Council; meTag: string }) {
           <h3 className="text-sm font-bold">Vote to Exile</h3>
         </div>
         <p className="text-[10px] text-muted-foreground">
-          3 downvotes within 24 hours exiles an inactive or dishonest member, opening their seat[span_12](start_span)[span_12](end_span).
+          3 downvotes within 24 hours exiles an inactive or dishonest member, opening their seat[span_1](start_span)[span_1](end_span).
         </p>
       </div>
       <ul className="flex flex-col gap-2">
