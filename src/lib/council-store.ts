@@ -247,8 +247,40 @@ export async function forgeCouncil(name: string): Promise<Council> {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Create locally
+  let dbCouncilId: string | undefined = undefined;
+
+  // Sync directly to Supabase Remote Database
+  if (user) {
+    const { data: dbCouncil, error: insertError } = await supabase
+      .from("councils")
+      .insert([{ council_tag: councilTag, name: councilName, created_by: user.id }])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error("Failed to insert council into Supabase:", insertError);
+      alert("Error creating council in database: " + insertError.message);
+    } else if (dbCouncil) {
+      dbCouncilId = dbCouncil.id;
+      const { error: memberError } = await supabase.from("council_members").insert([
+        {
+          council_id: dbCouncil.id,
+          user_id: user.id,
+          user_tag: me.userTag,
+          name: me.name,
+          is_leader: true,
+          daily_stats: defaultDaily(),
+        },
+      ]);
+      if (memberError) {
+        console.error("Failed to add leader to council_members:", memberError);
+      }
+    }
+  }
+
+  // Create local session matching Supabase record
   const c: Council = {
+    id: dbCouncilId,
     councilTag,
     name: councilName,
     createdAt: Date.now(),
@@ -268,36 +300,13 @@ export async function forgeCouncil(name: string): Promise<Council> {
         id: "sys-" + Date.now(),
         memberTag: "#SYSTEM",
         kind: "text",
-        body: `Council forged. Share your Council Tag or Player Tag with real-life allies.`,
+        body: `Council forged. Share your Council Tag (${councilTag}) with real-life allies.`,
         at: Date.now(),
       },
     ],
     mockLedger: [],
     votes: [],
   };
-
-  // Sync to Remote Database
-  if (user) {
-    const { data: dbCouncil } = await supabase
-      .from("councils")
-      .insert([{ council_tag: councilTag, name: councilName, created_by: user.id }])
-      .select()
-      .single();
-
-    if (dbCouncil) {
-      c.id = dbCouncil.id;
-      await supabase.from("council_members").insert([
-        {
-          council_id: dbCouncil.id,
-          user_id: user.id,
-          user_tag: me.userTag,
-          name: me.name,
-          is_leader: true,
-          daily_stats: defaultDaily(),
-        },
-      ]);
-    }
-  }
 
   save(c);
   return c;
@@ -310,7 +319,7 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // 1. Check Supabase Remote Database
+  // 1. Check Supabase Remote Database with Case-Insensitive ILIKE match
   let targetCouncilId: string | null = null;
   let targetCouncilTag: string = formattedTag;
   let targetCouncilName: string = "War Council";
@@ -318,7 +327,7 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
   const { data: matchedCouncil } = await supabase
     .from("councils")
     .select("id, council_tag, name")
-    .eq("council_tag", formattedTag)
+    .ilike("council_tag", formattedTag)
     .maybeSingle();
 
   if (matchedCouncil) {
@@ -330,7 +339,7 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
     const { data: memberMatch } = await supabase
       .from("council_members")
       .select("council_id")
-      .eq("user_tag", formattedTag)
+      .ilike("user_tag", formattedTag)
       .maybeSingle();
 
     if (memberMatch) {
