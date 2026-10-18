@@ -41,6 +41,10 @@ export const Route = createFileRoute("/_app/library")({
     meta: [
       { title: "My Library — From The Last Bench" },
       { name: "description", content: "Your purchased notes with reading progress and reviews." },
+      { property: "og:title", content: "My Library — From The Last Bench" },
+      { property: "og:description", content: "Your purchased notes with reading progress and reviews." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: LibraryPage,

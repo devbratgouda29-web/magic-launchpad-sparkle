@@ -27,6 +27,10 @@ export const Route = createFileRoute("/_app/discipline/focus")({
         content:
           "Deep-work stopwatch with picture-in-picture floating timer, break penalties, and a 7-day focus analytics chart.",
       },
+      { property: "og:title", content: "Focus Analytics Tracker — From The Last Bench" },
+      { property: "og:description", content: "Deep-work stopwatch with picture-in-picture floating timer, break penalties, and a 7-day focus analytics chart." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: FocusTrackerPage,

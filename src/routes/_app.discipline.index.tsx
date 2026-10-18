@@ -22,6 +22,10 @@ export const Route = createFileRoute("/_app/discipline/")({
         content:
           "Sovereign self-control and consistency tools: habit RPG, math-locked alarms, focus analytics, mission lockdown, and The War Council.",
       },
+      { property: "og:title", content: "Discipline Hub — From The Last Bench" },
+      { property: "og:description", content: "Sovereign self-control and consistency tools: habit RPG, math-locked alarms, focus analytics, mission lockdown, and The War Council." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: DisciplineHub,

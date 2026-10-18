@@ -125,6 +125,10 @@ export const Route = createFileRoute("/_app/discipline/war-council")({
         content:
           "Five seats. Real allies. High-stakes study battle royale with monthly War Overlord crowning.",
       },
+      { property: "og:title", content: "The War Council — From The Last Bench" },
+      { property: "og:description", content: "Five seats. Real allies. High-stakes study battle royale with monthly War Overlord crowning." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: WarCouncilPage,

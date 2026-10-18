@@ -73,6 +73,10 @@ export const Route = createFileRoute("/_app/performance")({
         content:
           "Weekly and monthly performance report cards with focus heatmaps, recall mastery metrics, and unlocked rank badges.",
       },
+      { property: "og:title", content: "Performance Reports — From The Last Bench" },
+      { property: "og:description", content: "Weekly and monthly performance report cards with focus heatmaps, recall mastery metrics, and unlocked rank badges." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   validateSearch: (s: Record<string, unknown>) => ({

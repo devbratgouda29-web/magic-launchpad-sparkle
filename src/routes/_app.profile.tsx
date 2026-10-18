@@ -41,6 +41,8 @@ export const Route = createFileRoute("/_app/profile")({
         property: "og:description",
         content: "Manage your account details, settings and membership status.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ProfilePage,

@@ -67,6 +67,10 @@ export const Route = createFileRoute("/reader/$noteId")({
     meta: [
       { title: "Reader — From The Last Bench" },
       { name: "description", content: "Read your purchased note pack in a distraction-free reader." },
+      { property: "og:title", content: "Reader — From The Last Bench" },
+      { property: "og:description", content: "Read your purchased note pack in a distraction-free reader." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ReaderPage,

@@ -17,6 +17,8 @@ export const Route = createFileRoute("/auth/callback")({
       { property: "og:title", content: "Signing you in — From The Last Bench" },
       { property: "og:description", content: "Completing your sign-in." },
       { name: "robots", content: "noindex" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AuthCallback,
