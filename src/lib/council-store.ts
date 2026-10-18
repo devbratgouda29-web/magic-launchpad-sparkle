@@ -1,4 +1,37 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Json } from "@/integrations/supabase/types";
+
+// Optional legacy tables are not present in every deployment's generated schema.
+// Reuse the authenticated client; never create an alternate client or bypass RLS.
+type CouncilRow = { id: string; council_tag: string; name: string; created_by: string };
+type MemberRow = {
+  council_id: string; user_id: string; user_tag: string; name: string;
+  is_leader: boolean; daily_stats: Json;
+};
+type CouncilDatabase = {
+  public: {
+    Tables: {
+      councils: { Row: CouncilRow; Insert: Omit<CouncilRow, "id">; Update: Partial<CouncilRow>; Relationships: [] };
+      council_members: { Row: MemberRow; Insert: MemberRow; Update: Partial<MemberRow>; Relationships: [] };
+    };
+    Views: {}; Functions: {}; Enums: {}; CompositeTypes: {};
+  };
+};
+const councilDb = supabase as unknown as SupabaseClient<CouncilDatabase>;
+
+function logCouncilError(action: string, error: unknown) {
+  console.warn(`[War Council] ${action} failed; keeping local state available.`, error);
+}
+
+async function safelySync(action: string, operation: () => Promise<void>) {
+  try {
+    await operation();
+  } catch (error) {
+    logCouncilError(action, error);
+  }
+}
+
 
 // THE WAR COUNCIL — Supabase-backed store for the multiplayer accountability cell.
 // Real-life friends only: no random matchmaking, no public directories.
@@ -233,8 +266,8 @@ function recomputeRanks(c: Council) {
     return sb - sa;
   });
   sorted.forEach((m, i) => {
-    const t = c.members.find((x) => x.userTag === m.userTag)!;
-    t.productivityRank = i + 1;
+    const t = c.members.find((x) => x.userTag === m.userTag);
+    if (t) t.productivityRank = i + 1;
   });
 }
 
@@ -245,38 +278,28 @@ export async function forgeCouncil(name: string): Promise<Council> {
   const councilTag = makeCouncilTag();
   const councilName = name.trim() || "The War Council";
 
-  const { data: { user } } = await supabase.auth.getUser();
+  let userId: string | undefined;
+  let dbCouncilId: string | undefined;
 
-  let dbCouncilId: string | undefined = undefined;
-
-  // Sync directly to Supabase Remote Database
-  if (user) {
-    const { data: dbCouncil, error: insertError } = await supabase
+  await safelySync("Forge council", async () => {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!user) return;
+    userId = user.id;
+    const { data: dbCouncil, error: insertError } = await councilDb
       .from("councils")
       .insert([{ council_tag: councilTag, name: councilName, created_by: user.id }])
       .select()
       .single();
-
-    if (insertError) {
-      console.error("Failed to insert council into Supabase:", insertError);
-      alert("Error creating council in database: " + insertError.message);
-    } else if (dbCouncil) {
-      dbCouncilId = dbCouncil.id;
-      const { error: memberError } = await supabase.from("council_members").insert([
-        {
-          council_id: dbCouncil.id,
-          user_id: user.id,
-          user_tag: me.userTag,
-          name: me.name,
-          is_leader: true,
-          daily_stats: defaultDaily(),
-        },
-      ]);
-      if (memberError) {
-        console.error("Failed to add leader to council_members:", memberError);
-      }
-    }
-  }
+    if (insertError) throw insertError;
+    if (!dbCouncil) throw new Error("Council creation returned no record.");
+    const { error: memberError } = await councilDb.from("council_members").insert([{
+      council_id: dbCouncil.id, user_id: user.id, user_tag: me.userTag,
+      name: me.name, is_leader: true, daily_stats: defaultDaily(),
+    }]);
+    if (memberError) throw memberError;
+    dbCouncilId = dbCouncil.id;
+  });
 
   // Create local session matching Supabase record
   const c: Council = {
@@ -287,7 +310,7 @@ export async function forgeCouncil(name: string): Promise<Council> {
     members: [
       {
         userTag: me.userTag,
-        ...(user?.id ? { userId: user.id } : {}),
+        ...(userId ? { userId } : {}),
         name: me.name,
         joinedAt: Date.now(),
         isLeader: true,
@@ -317,45 +340,40 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
   const formattedTag = clean.startsWith("#") ? clean : `#${clean}`;
   const me = getMe();
 
-  const { data: { user } } = await supabase.auth.getUser();
-
-  // 1. Check Supabase Remote Database with Case-Insensitive ILIKE match
+  let userId: string | undefined;
   let targetCouncilId: string | null = null;
-  let targetCouncilTag: string = formattedTag;
-  let targetCouncilName: string = "War Council";
+  let targetCouncilTag = formattedTag;
+  let targetCouncilName = "War Council";
 
-  const { data: matchedCouncil } = await supabase
-    .from("councils")
-    .select("id, council_tag, name")
-    .ilike("council_tag", formattedTag)
-    .maybeSingle();
-
-  if (matchedCouncil) {
-    targetCouncilId = matchedCouncil.id;
-    targetCouncilTag = matchedCouncil.council_tag;
-    targetCouncilName = matchedCouncil.name;
-  } else {
-    // Search by member tag
-    const { data: memberMatch } = await supabase
-      .from("council_members")
-      .select("council_id")
-      .ilike("user_tag", formattedTag)
-      .maybeSingle();
-
-    if (memberMatch) {
-      const { data: parentCouncil } = await supabase
-        .from("councils")
-        .select("id, council_tag, name")
-        .eq("id", memberMatch.council_id)
-        .maybeSingle();
-
-      if (parentCouncil) {
-        targetCouncilId = parentCouncil.id;
-        targetCouncilTag = parentCouncil.council_tag;
-        targetCouncilName = parentCouncil.name;
-      }
+  await safelySync("Find council", async () => {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    userId = user?.id;
+    const { data: matchedCouncil, error: lookupError } = await councilDb
+      .from("councils").select("id, council_tag, name")
+      .ilike("council_tag", formattedTag).maybeSingle();
+    if (lookupError) throw lookupError;
+    if (matchedCouncil) {
+      targetCouncilId = matchedCouncil.id;
+      targetCouncilTag = matchedCouncil.council_tag;
+      targetCouncilName = matchedCouncil.name;
+      return;
     }
-  }
+    const { data: memberMatch, error: memberError } = await councilDb
+      .from("council_members").select("council_id")
+      .ilike("user_tag", formattedTag).maybeSingle();
+    if (memberError) throw memberError;
+    if (!memberMatch) return;
+    const { data: parentCouncil, error: parentError } = await councilDb
+      .from("councils").select("id, council_tag, name")
+      .eq("id", memberMatch.council_id).maybeSingle();
+    if (parentError) throw parentError;
+    if (parentCouncil) {
+      targetCouncilId = parentCouncil.id;
+      targetCouncilTag = parentCouncil.council_tag;
+      targetCouncilName = parentCouncil.name;
+    }
+  });
 
   // 2. Fallback to Local Storage check if Supabase didn't match
   if (!targetCouncilId) {
@@ -374,7 +392,7 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
 
       localC.members.push({
         userTag: me.userTag,
-        ...(user?.id ? { userId: user.id } : {}),
+        ...(userId ? { userId } : {}),
         name: me.name,
         joinedAt: Date.now(),
         isLeader: false,
@@ -390,42 +408,39 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
     return { ok: false, error: "No active council found with that tag." };
   }
 
-  // Check seat limit on Supabase
-  const { data: currentMembers } = await supabase
-    .from("council_members")
-    .select("user_id, user_tag")
-    .eq("council_id", targetCouncilId);
-
-  if (currentMembers && currentMembers.length >= MAX) {
-    return { ok: false, error: "Council is full (Maximum 5 seats occupied)." };
-  }
-
-  if (currentMembers?.some((m) => m.user_tag === me.userTag || (user && m.user_id === user.id))) {
-    return { ok: false, error: "You are already a member of this council." };
-  }
-
-  // Join in Supabase
-  if (user) {
-    await supabase.from("council_members").insert([
-      {
-        council_id: targetCouncilId,
-        user_id: user.id,
-        user_tag: me.userTag,
-        name: me.name,
-        is_leader: false,
-        daily_stats: defaultDaily(),
-      },
-    ]);
-  }
+  let memberCount = 0;
+  let joinError: string | undefined;
+  await safelySync("Join council", async () => {
+    const { data: currentMembers, error: membersError } = await councilDb
+      .from("council_members").select("user_id, user_tag")
+      .eq("council_id", targetCouncilId);
+    if (membersError) throw membersError;
+    memberCount = currentMembers?.length ?? 0;
+    if (memberCount >= MAX) {
+      joinError = "Council is full (Maximum 5 seats occupied).";
+      return;
+    }
+    if (currentMembers?.some((m) => m.user_tag === me.userTag || (userId && m.user_id === userId))) {
+      joinError = "You are already a member of this council.";
+      return;
+    }
+    if (!userId) return;
+    const { error: insertError } = await councilDb.from("council_members").insert([{
+      council_id: targetCouncilId, user_id: userId, user_tag: me.userTag,
+      name: me.name, is_leader: false, daily_stats: defaultDaily(),
+    }]);
+    if (insertError) throw insertError;
+  });
+  if (joinError) return { ok: false, error: joinError };
 
   // Hydrate local session
   const newMember: Member = {
     userTag: me.userTag,
-    ...(user?.id ? { userId: user.id } : {}),
+    ...(userId ? { userId } : {}),
     name: me.name,
     joinedAt: Date.now(),
     isLeader: false,
-    productivityRank: (currentMembers?.length || 0) + 1,
+    productivityRank: memberCount + 1,
     daily: defaultDaily(),
   };
 
@@ -453,33 +468,28 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
 }
 
 export function leaveCouncil() {
-  const me = getMe();
   const c = getCouncil();
-  if (!c) return;
-
-  if (c.id) {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        supabase.from("council_members").delete().eq("council_id", c.id).eq("user_id", user.id);
-      }
-    });
-  }
-
-  c.members = c.members.filter((m) => m.userTag !== me.userTag);
-  if (c.members.length === 0) {
-    save(null);
-    return;
-  }
-  if (!c.members.some((m) => m.isLeader)) c.members[0].isLeader = true;
-  save(c);
+  // Clear immediately, even when authentication or the remote delete fails.
+  save(null);
+  if (!c?.id) return;
+  void safelySync("Leave council", async () => {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!user) return;
+    const { error } = await councilDb.from("council_members").delete()
+      .eq("council_id", c.id).eq("user_id", user.id);
+    if (error) throw error;
+  });
 }
 
 export function dissolveCouncil() {
   const c = getCouncil();
-  if (c?.id) {
-    supabase.from("councils").delete().eq("id", c.id);
-  }
   save(null);
+  if (!c?.id) return;
+  void safelySync("Dissolve council", async () => {
+    const { error } = await councilDb.from("councils").delete().eq("id", c.id);
+    if (error) throw error;
+  });
 }
 
 // -------- Chat --------
@@ -662,19 +672,17 @@ export function updateMyDaily(patch: Partial<MemberDailyStats>) {
   m.daily = { ...m.daily, ...patch, ...deriveProgression({ ...m.daily, ...patch }) };
   recomputeRanks(c);
 
+  save(c);
   if (c.id) {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        supabase
-          .from("council_members")
-          .update({ daily_stats: m.daily })
-          .eq("council_id", c.id)
-          .eq("user_id", user.id);
-      }
+    void safelySync("Update daily stats", async () => {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!user) return;
+      const { error } = await councilDb.from("council_members")
+        .update({ daily_stats: m.daily }).eq("council_id", c.id).eq("user_id", user.id);
+      if (error) throw error;
     });
   }
-
-  save(c);
 }
 
 export const MAX_MEMBERS = MAX;
