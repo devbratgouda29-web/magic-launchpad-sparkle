@@ -23,6 +23,10 @@ export const Route = createFileRoute("/_app/discipline/alarm")({
         content:
           "Un-snoozable morning ignition. Solve to silence — no shortcuts, no snooze, no mercy.",
       },
+      { property: "og:title", content: "Math-Locked Alarm — Discipline Hub" },
+      { property: "og:description", content: "Un-snoozable morning ignition. Solve to silence — no shortcuts, no snooze, no mercy." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AlarmPage,

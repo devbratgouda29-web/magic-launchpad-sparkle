@@ -15,6 +15,10 @@ export const Route = createFileRoute("/_app/home")({
     meta: [
       { title: "Home — From The Last Bench" },
       { name: "description", content: "Browse study notes by subject and grab the ones you need." },
+      { property: "og:title", content: "Home — From The Last Bench" },
+      { property: "og:description", content: "Browse study notes by subject and grab the ones you need." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: () => (

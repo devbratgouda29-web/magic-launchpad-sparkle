@@ -41,6 +41,10 @@ export const Route = createFileRoute("/_app/discipline/mission")({
         content:
           "Lock in unlimited daily missions for 24 hours. No edits, no excuses — clear them before the timer or roll them into tomorrow.",
       },
+      { property: "og:title", content: "Mission Lockdown — From The Last Bench" },
+      { property: "og:description", content: "Lock in unlimited daily missions for 24 hours. No edits, no excuses — clear them before the timer or roll them into tomorrow." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: MissionLockdownPage,

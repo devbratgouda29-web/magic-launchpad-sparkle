@@ -28,6 +28,10 @@ export const Route = createFileRoute("/_app/discipline/habits")({
         content:
           "Autonomous 24-hour habit clocks. Streaks climb by themselves; relapse resets you to Level 1.",
       },
+      { property: "og:title", content: "Habit RPG Tracker — Discipline Hub" },
+      { property: "og:description", content: "Autonomous 24-hour habit clocks. Streaks climb by themselves; relapse resets you to Level 1." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: HabitTrackerPage,

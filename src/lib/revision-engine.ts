@@ -431,6 +431,7 @@ export type GhostTask = {
   dueTomorrow: boolean;
   graceDeadline: number;
   graceLabel: string;
+  isDebt?: boolean;
   /** Session length implied by the item's current tier, in minutes. */
   durationMin: number;
 };

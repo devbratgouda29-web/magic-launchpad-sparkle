@@ -49,6 +49,8 @@ export const Route = createFileRoute("/_app/admin")({
       { property: "og:title", content: "Admin Console — From The Last Bench" },
       { property: "og:description", content: "Upload chapters, manage pricing and review sales." },
       { name: "robots", content: "noindex" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AdminPage,
