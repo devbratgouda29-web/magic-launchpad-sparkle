@@ -410,10 +410,11 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
 
   let memberCount = 0;
   let joinError: string | undefined;
+  const councilId = targetCouncilId;
   await safelySync("Join council", async () => {
     const { data: currentMembers, error: membersError } = await councilDb
       .from("council_members").select("user_id, user_tag")
-      .eq("council_id", targetCouncilId);
+      .eq("council_id", councilId);
     if (membersError) throw membersError;
     memberCount = currentMembers?.length ?? 0;
     if (memberCount >= MAX) {
@@ -426,7 +427,7 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
     }
     if (!userId) return;
     const { error: insertError } = await councilDb.from("council_members").insert([{
-      council_id: targetCouncilId, user_id: userId, user_tag: me.userTag,
+      council_id: councilId, user_id: userId, user_tag: me.userTag,
       name: me.name, is_leader: false, daily_stats: defaultDaily(),
     }]);
     if (insertError) throw insertError;
@@ -471,13 +472,14 @@ export function leaveCouncil() {
   const c = getCouncil();
   // Clear immediately, even when authentication or the remote delete fails.
   save(null);
-  if (!c?.id) return;
+  const councilId = c?.id;
+  if (!councilId) return;
   void safelySync("Leave council", async () => {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!user) return;
     const { error } = await councilDb.from("council_members").delete()
-      .eq("council_id", c.id).eq("user_id", user.id);
+      .eq("council_id", councilId).eq("user_id", user.id);
     if (error) throw error;
   });
 }
@@ -485,9 +487,10 @@ export function leaveCouncil() {
 export function dissolveCouncil() {
   const c = getCouncil();
   save(null);
-  if (!c?.id) return;
+  const councilId = c?.id;
+  if (!councilId) return;
   void safelySync("Dissolve council", async () => {
-    const { error } = await councilDb.from("councils").delete().eq("id", c.id);
+    const { error } = await councilDb.from("councils").delete().eq("id", councilId);
     if (error) throw error;
   });
 }
@@ -673,13 +676,14 @@ export function updateMyDaily(patch: Partial<MemberDailyStats>) {
   recomputeRanks(c);
 
   save(c);
-  if (c.id) {
+  const councilId = c.id;
+  if (councilId) {
     void safelySync("Update daily stats", async () => {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
       if (!user) return;
       const { error } = await councilDb.from("council_members")
-        .update({ daily_stats: m.daily }).eq("council_id", c.id).eq("user_id", user.id);
+        .update({ daily_stats: m.daily }).eq("council_id", councilId).eq("user_id", user.id);
       if (error) throw error;
     });
   }
