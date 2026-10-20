@@ -1,36 +1,34 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Json } from "@/integrations/supabase/types";
+import { toast } from "sonner";
 
-// Optional legacy tables are not present in every deployment's generated schema.
-// Reuse the authenticated client; never create an alternate client or bypass RLS.
-type CouncilRow = { id: string; council_tag: string; name: string; created_by: string };
-type MemberRow = {
-  council_id: string; user_id: string; user_tag: string; name: string;
-  is_leader: boolean; daily_stats: Json;
-};
-type CouncilDatabase = {
-  public: {
-    Tables: {
-      councils: { Row: CouncilRow; Insert: Omit<CouncilRow, "id">; Update: Partial<CouncilRow>; Relationships: [] };
-      council_members: { Row: MemberRow; Insert: MemberRow; Update: Partial<MemberRow>; Relationships: [] };
-    };
-    Views: {}; Functions: {}; Enums: {}; CompositeTypes: {};
-  };
-};
-const councilDb = supabase as unknown as SupabaseClient<CouncilDatabase>;
+// THE WAR COUNCIL — Supabase is the PRIMARY SOURCE OF TRUTH.
+// Every council action writes/reads the database first; any failure surfaces
+// as a visible toast alert. There are NO silent local-only fallbacks that
+// hide network errors. A local cache mirrors the database so the roster
+// renders instantly and chat/ledger-only data survives between visits.
 
-function logCouncilError(action: string, error: unknown) {
-  console.warn(`[War Council] ${action} failed; keeping local state available.`, error);
+function errorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "message" in error) {
+    const msg = (error as { message?: unknown }).message;
+    if (typeof msg === "string" && msg) return msg;
+  }
+  return String(error ?? "Unknown error");
+}
+
+// Surface every database failure to the user immediately.
+function alertCouncilFailure(action: string, error: unknown) {
+  console.error(`[War Council] ${action} failed:`, error);
+  toast.error(`${action} failed`, { description: errorMessage(error) });
 }
 
 async function safelySync(action: string, operation: () => Promise<void>) {
   try {
     await operation();
   } catch (error) {
-    logCouncilError(action, error);
+    alertCouncilFailure(action, error);
   }
 }
+
 
 
 // THE WAR COUNCIL — Supabase-backed store for the multiplayer accountability cell.
