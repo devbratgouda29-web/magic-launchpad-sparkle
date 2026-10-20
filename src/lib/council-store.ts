@@ -217,6 +217,89 @@ function save(c: Council | null) {
   emit();
 }
 
+// Rebuild the local council session from Supabase — the database wins.
+// Called when the council screen opens so multi-device state stays honest.
+export async function refreshCouncilFromSupabase(): Promise<Council | null> {
+  if (typeof window === "undefined") return null;
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    alertCouncilFailure("Sync council", authError);
+    return getCouncil();
+  }
+  if (!user) return null;
+  try {
+    const { data: seat, error: seatError } = await supabase
+      .from("council_members").select("council_id")
+      .eq("user_id", user.id).maybeSingle();
+    if (seatError) throw seatError;
+    if (!seat) {
+      if (getCouncil()) save(null); // stale local cache — the database has no membership
+      return null;
+    }
+    const { data: dbCouncil, error: councilError } = await supabase
+      .from("councils").select("id, council_tag, name, created_at")
+      .eq("id", seat.council_id).maybeSingle();
+    if (councilError) throw councilError;
+    if (!dbCouncil) {
+      if (getCouncil()) save(null);
+      return null;
+    }
+    const { data: memberRows, error: membersError } = await supabase
+      .from("council_members")
+      .select("user_id, user_tag, name, is_leader, daily_stats, created_at")
+      .eq("council_id", dbCouncil.id)
+      .order("created_at");
+    if (membersError) throw membersError;
+
+    const prior = getCouncil();
+    const sameCouncil = prior?.id === dbCouncil.id ? prior : null;
+    const members: Member[] = (memberRows ?? []).map((row) => {
+      const prev = sameCouncil?.members.find((m) => m.userTag === row.user_tag);
+      const daily = { ...defaultDaily(), ...(row.daily_stats ?? {}) as Partial<MemberDailyStats> };
+      const joinedAt = new Date(row.created_at).getTime();
+      return {
+        userTag: row.user_tag,
+        userId: row.user_id,
+        name: row.name,
+        joinedAt: Number.isFinite(joinedAt) ? joinedAt : (prev?.joinedAt ?? Date.now()),
+        isLeader: row.is_leader,
+        productivityRank: prev?.productivityRank ?? 1,
+        daily,
+        ...(prev?.warlordUntil ? { warlordUntil: prev.warlordUntil } : {}),
+      };
+    });
+
+    const priorCreatedAt = sameCouncil?.createdAt ?? 0;
+    const remoteCreatedAt = new Date(dbCouncil.created_at).getTime();
+    const refreshed: Council = {
+      id: dbCouncil.id,
+      councilTag: dbCouncil.council_tag,
+      name: dbCouncil.name,
+      createdAt: Number.isFinite(remoteCreatedAt) && remoteCreatedAt > 0 ? remoteCreatedAt : priorCreatedAt || Date.now(),
+      members,
+      chat: sameCouncil?.chat ?? [
+        {
+          id: "sys-" + Date.now(),
+          memberTag: "#SYSTEM",
+          kind: "text",
+          body: `Council synced from the database. Tag: ${dbCouncil.council_tag}`,
+          at: Date.now(),
+        },
+      ],
+      mockLedger: sameCouncil?.mockLedger ?? [],
+      votes: sameCouncil?.votes ?? [],
+      ...(sameCouncil?.weeklyWinners ? { weeklyWinners: sameCouncil.weeklyWinners } : {}),
+      ...(sameCouncil?.wallOfHonor ? { wallOfHonor: sameCouncil.wallOfHonor } : {}),
+    };
+    recomputeRanks(refreshed);
+    save(refreshed);
+    return refreshed;
+  } catch (error) {
+    alertCouncilFailure("Sync council", error);
+    return getCouncil();
+  }
+}
+
 function defaultDaily(): MemberDailyStats {
   return {
     wakeUpAt: null,
