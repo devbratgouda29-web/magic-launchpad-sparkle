@@ -14,6 +14,71 @@ export type Database = {
   }
   public: {
     Tables: {
+      council_members: {
+        Row: {
+          council_id: string
+          created_at: string
+          daily_stats: Json
+          id: string
+          is_leader: boolean
+          name: string
+          user_id: string
+          user_tag: string
+        }
+        Insert: {
+          council_id: string
+          created_at?: string
+          daily_stats?: Json
+          id?: string
+          is_leader?: boolean
+          name?: string
+          user_id: string
+          user_tag: string
+        }
+        Update: {
+          council_id?: string
+          created_at?: string
+          daily_stats?: Json
+          id?: string
+          is_leader?: boolean
+          name?: string
+          user_id?: string
+          user_tag?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "council_members_council_id_fkey"
+            columns: ["council_id"]
+            isOneToOne: false
+            referencedRelation: "councils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      councils: {
+        Row: {
+          council_tag: string
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+        }
+        Insert: {
+          council_tag: string
+          created_at?: string
+          created_by: string
+          id?: string
+          name?: string
+        }
+        Update: {
+          council_tag?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       notes: {
         Row: {
           concepts: string | null
