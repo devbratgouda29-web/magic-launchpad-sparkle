@@ -428,131 +428,73 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
   const formattedTag = clean.startsWith("#") ? clean : `#${clean}`;
   const me = getMe();
 
-  let userId: string | undefined;
-  let targetCouncilId: string | null = null;
-  let targetCouncilTag = formattedTag;
-  let targetCouncilName = "War Council";
-
-  await safelySync("Find council", async () => {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError) throw authError;
-    userId = user?.id;
-    const { data: matchedCouncil, error: lookupError } = await councilDb
-      .from("councils").select("id, council_tag, name")
-      .ilike("council_tag", formattedTag).maybeSingle();
-    if (lookupError) throw lookupError;
-    if (matchedCouncil) {
-      targetCouncilId = matchedCouncil.id;
-      targetCouncilTag = matchedCouncil.council_tag;
-      targetCouncilName = matchedCouncil.name;
-      return;
-    }
-    const { data: memberMatch, error: memberError } = await councilDb
-      .from("council_members").select("council_id")
-      .ilike("user_tag", formattedTag).maybeSingle();
-    if (memberError) throw memberError;
-    if (!memberMatch) return;
-    const { data: parentCouncil, error: parentError } = await councilDb
-      .from("councils").select("id, council_tag, name")
-      .eq("id", memberMatch.council_id).maybeSingle();
-    if (parentError) throw parentError;
-    if (parentCouncil) {
-      targetCouncilId = parentCouncil.id;
-      targetCouncilTag = parentCouncil.council_tag;
-      targetCouncilName = parentCouncil.name;
-    }
-  });
-
-  // 2. Fallback to Local Storage check if Supabase didn't match
-  if (!targetCouncilId) {
-    const localC = getCouncil();
-    if (
-      localC &&
-      (localC.councilTag.toUpperCase() === formattedTag ||
-        localC.members.some((m) => m.userTag.toUpperCase() === formattedTag))
-    ) {
-      if (localC.members.some((m) => m.userTag === me.userTag)) {
-        return { ok: false, error: "You are already a member of this council." };
-      }
-      if (localC.members.length >= MAX) {
-        return { ok: false, error: "Council is full (Maximum 5 seats occupied)." };
-      }
-
-      localC.members.push({
-        userTag: me.userTag,
-        ...(userId ? { userId } : {}),
-        name: me.name,
-        joinedAt: Date.now(),
-        isLeader: false,
-        productivityRank: localC.members.length + 1,
-        daily: defaultDaily(),
-      });
-
-      recomputeRanks(localC);
-      save(localC);
-      return { ok: true };
-    }
-
-    return { ok: false, error: "No active council found with that tag." };
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    alertCouncilFailure("Find council", authError);
+    return { ok: false, error: errorMessage(authError) };
+  }
+  if (!user) {
+    toast.error("Sign in required", { description: "Sign in to join a council." });
+    return { ok: false, error: "Sign in to join a council." };
   }
 
-  let memberCount = 0;
-  let joinError: string | undefined;
-  const councilId = targetCouncilId;
-  await safelySync("Join council", async () => {
-    const { data: currentMembers, error: membersError } = await councilDb
+  // Case-insensitive lookup straight against Supabase: by council tag first,
+  // then by any member's player tag. No local-only matching.
+  let target: { id: string; council_tag: string; name: string } | null = null;
+  try {
+    const { data: byCouncilTag, error: councilError } = await supabase
+      .from("councils").select("id, council_tag, name")
+      .ilike("council_tag", formattedTag).maybeSingle();
+    if (councilError) throw councilError;
+    if (byCouncilTag) {
+      target = byCouncilTag;
+    } else {
+      const { data: memberMatch, error: memberError } = await supabase
+        .from("council_members").select("council_id")
+        .ilike("user_tag", formattedTag).maybeSingle();
+      if (memberError) throw memberError;
+      if (memberMatch) {
+        const { data: parentCouncil, error: parentError } = await supabase
+          .from("councils").select("id, council_tag, name")
+          .eq("id", memberMatch.council_id).maybeSingle();
+        if (parentError) throw parentError;
+        if (parentCouncil) target = parentCouncil;
+      }
+    }
+  } catch (error) {
+    alertCouncilFailure("Find council", error);
+    return { ok: false, error: errorMessage(error) };
+  }
+
+  if (!target) return { ok: false, error: "No active council found with that tag." };
+
+  try {
+    const { data: currentMembers, error: membersError } = await supabase
       .from("council_members").select("user_id, user_tag")
-      .eq("council_id", councilId);
+      .eq("council_id", target.id);
     if (membersError) throw membersError;
-    memberCount = currentMembers?.length ?? 0;
-    if (memberCount >= MAX) {
-      joinError = "Council is full (Maximum 5 seats occupied).";
-      return;
+    const members = currentMembers ?? [];
+    if (members.length >= MAX) {
+      return { ok: false, error: "Council is full (Maximum 5 seats occupied)." };
     }
-    if (currentMembers?.some((m) => m.user_tag === me.userTag || (userId && m.user_id === userId))) {
-      joinError = "You are already a member of this council.";
-      return;
+    if (members.some((m) => m.user_id === user.id || m.user_tag.toUpperCase() === me.userTag.toUpperCase())) {
+      return { ok: false, error: "You are already a member of this council." };
     }
-    if (!userId) return;
-    const { error: insertError } = await councilDb.from("council_members").insert([{
-      council_id: councilId, user_id: userId, user_tag: me.userTag,
+    const { error: insertError } = await supabase.from("council_members").insert([{
+      council_id: target.id, user_id: user.id, user_tag: me.userTag,
       name: me.name, is_leader: false, daily_stats: defaultDaily(),
     }]);
     if (insertError) throw insertError;
-  });
-  if (joinError) return { ok: false, error: joinError };
+  } catch (error) {
+    alertCouncilFailure("Join council", error);
+    return { ok: false, error: errorMessage(error) };
+  }
 
-  // Hydrate local session
-  const newMember: Member = {
-    userTag: me.userTag,
-    ...(userId ? { userId } : {}),
-    name: me.name,
-    joinedAt: Date.now(),
-    isLeader: false,
-    productivityRank: memberCount + 1,
-    daily: defaultDaily(),
-  };
-
-  const joinedCouncil: Council = {
-    id: targetCouncilId,
-    councilTag: targetCouncilTag,
-    name: targetCouncilName,
-    createdAt: Date.now(),
-    members: [newMember],
-    chat: [
-      {
-        id: "sys-" + Date.now(),
-        memberTag: "#SYSTEM",
-        kind: "text",
-        body: `${me.name} (${me.userTag}) joined the War Council!`,
-        at: Date.now(),
-      },
-    ],
-    mockLedger: [],
-    votes: [],
-  };
-
-  save(joinedCouncil);
+  // Pull the full remote roster so the joined session mirrors Supabase.
+  const hydrated = await refreshCouncilFromSupabase();
+  if (!hydrated) {
+    return { ok: false, error: "Seat created, but the roster could not be loaded. Reopen the council screen." };
+  }
   return { ok: true };
 }
 
