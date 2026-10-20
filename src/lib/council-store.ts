@@ -354,35 +354,42 @@ function recomputeRanks(c: Council) {
 
 // -------- SUPABASE MULTIPLAYER CONNECTORS --------
 
-export async function forgeCouncil(name: string): Promise<Council> {
+export async function forgeCouncil(name: string): Promise<Council | null> {
   const me = getMe();
   const councilTag = makeCouncilTag();
   const councilName = name.trim() || "The War Council";
 
-  let userId: string | undefined;
-  let dbCouncilId: string | undefined;
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    alertCouncilFailure("Forge council", authError);
+    return null;
+  }
+  if (!user) {
+    toast.error("Sign in required", { description: "Create a free account to forge a council." });
+    return null;
+  }
 
-  await safelySync("Forge council", async () => {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError) throw authError;
-    if (!user) return;
-    userId = user.id;
-    const { data: dbCouncil, error: insertError } = await councilDb
+  let dbCouncilId: string;
+  try {
+    const { data: dbCouncil, error: insertError } = await supabase
       .from("councils")
       .insert([{ council_tag: councilTag, name: councilName, created_by: user.id }])
-      .select()
+      .select("id, council_tag, name")
       .single();
     if (insertError) throw insertError;
     if (!dbCouncil) throw new Error("Council creation returned no record.");
-    const { error: memberError } = await councilDb.from("council_members").insert([{
+
+    const { error: memberError } = await supabase.from("council_members").insert([{
       council_id: dbCouncil.id, user_id: user.id, user_tag: me.userTag,
       name: me.name, is_leader: true, daily_stats: defaultDaily(),
     }]);
     if (memberError) throw memberError;
     dbCouncilId = dbCouncil.id;
-  });
+  } catch (error) {
+    alertCouncilFailure("Forge council", error);
+    return null;
+  }
 
-  // Create local session matching Supabase record
   const c: Council = {
     id: dbCouncilId,
     councilTag,
@@ -391,7 +398,7 @@ export async function forgeCouncil(name: string): Promise<Council> {
     members: [
       {
         userTag: me.userTag,
-        ...(userId ? { userId } : {}),
+        userId: user.id,
         name: me.name,
         joinedAt: Date.now(),
         isLeader: true,
