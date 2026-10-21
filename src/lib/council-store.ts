@@ -393,6 +393,7 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
     }]);
     if (memberError) throw memberError;
     dbCouncilId = dbCouncil.id;
+    dbCouncilTag = dbCouncil.council_tag;
   } catch (error) {
     alertCouncilFailure("Forge council", error);
     return null;
@@ -400,7 +401,7 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
 
   const c: Council = {
     id: dbCouncilId,
-    councilTag,
+    councilTag: dbCouncilTag,
     name: councilName,
     createdAt: Date.now(),
     members: [
@@ -419,7 +420,7 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
         id: "sys-" + Date.now(),
         memberTag: "#SYSTEM",
         kind: "text",
-        body: `Council forged. Share your Council Tag (${councilTag}) with real-life allies.`,
+        body: `Council forged. Share your Council Tag (${dbCouncilTag}) with real-life allies.`,
         at: Date.now(),
       },
     ],
