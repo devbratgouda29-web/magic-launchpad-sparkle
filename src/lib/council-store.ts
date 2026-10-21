@@ -508,7 +508,7 @@ export function leaveCouncil() {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!user) return;
-    const { error } = await councilDb.from("council_members").delete()
+    const { error } = await supabase.from("council_members").delete()
       .eq("council_id", councilId).eq("user_id", user.id);
     if (error) throw error;
   });
@@ -520,7 +520,7 @@ export function dissolveCouncil() {
   const councilId = c?.id;
   if (!councilId) return;
   void safelySync("Dissolve council", async () => {
-    const { error } = await councilDb.from("councils").delete().eq("id", councilId);
+    const { error } = await supabase.from("councils").delete().eq("id", councilId);
     if (error) throw error;
   });
 }
@@ -712,7 +712,7 @@ export function updateMyDaily(patch: Partial<MemberDailyStats>) {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
       if (!user) return;
-      const { error } = await councilDb.from("council_members")
+      const { error } = await supabase.from("council_members")
         .update({ daily_stats: m.daily }).eq("council_id", councilId).eq("user_id", user.id);
       if (error) throw error;
     });
