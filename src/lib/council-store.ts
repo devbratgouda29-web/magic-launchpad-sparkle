@@ -359,9 +359,16 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
   const councilTag = makeCouncilTag();
   const councilName = name.trim() || "The War Council";
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError) {
-    alertCouncilFailure("Forge council", authError);
+  let user: { id: string } | null = null;
+  try {
+    const auth = await supabase.auth.getUser();
+    if (auth.error) {
+      alertCouncilFailure("Forge council", auth.error);
+      return null;
+    }
+    user = auth.data.user;
+  } catch (error) {
+    alertCouncilFailure("Forge council", error);
     return null;
   }
   if (!user) {
@@ -370,6 +377,7 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
   }
 
   let dbCouncilId: string;
+  let dbCouncilTag = councilTag;
   try {
     const { data: dbCouncil, error: insertError } = await supabase
       .from("councils")
@@ -385,6 +393,7 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
     }]);
     if (memberError) throw memberError;
     dbCouncilId = dbCouncil.id;
+    dbCouncilTag = dbCouncil.council_tag;
   } catch (error) {
     alertCouncilFailure("Forge council", error);
     return null;
@@ -392,7 +401,7 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
 
   const c: Council = {
     id: dbCouncilId,
-    councilTag,
+    councilTag: dbCouncilTag,
     name: councilName,
     createdAt: Date.now(),
     members: [
@@ -411,7 +420,7 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
         id: "sys-" + Date.now(),
         memberTag: "#SYSTEM",
         kind: "text",
-        body: `Council forged. Share your Council Tag (${councilTag}) with real-life allies.`,
+        body: `Council forged. Share your Council Tag (${dbCouncilTag}) with real-life allies.`,
         at: Date.now(),
       },
     ],
@@ -428,10 +437,17 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
   const formattedTag = clean.startsWith("#") ? clean : `#${clean}`;
   const me = getMe();
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError) {
-    alertCouncilFailure("Find council", authError);
-    return { ok: false, error: errorMessage(authError) };
+  let user: { id: string } | null = null;
+  try {
+    const auth = await supabase.auth.getUser();
+    if (auth.error) {
+      alertCouncilFailure("Find council", auth.error);
+      return { ok: false, error: errorMessage(auth.error) };
+    }
+    user = auth.data.user;
+  } catch (error) {
+    alertCouncilFailure("Find council", error);
+    return { ok: false, error: errorMessage(error) };
   }
   if (!user) {
     toast.error("Sign in required", { description: "Sign in to join a council." });
@@ -508,7 +524,7 @@ export function leaveCouncil() {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!user) return;
-    const { error } = await councilDb.from("council_members").delete()
+    const { error } = await supabase.from("council_members").delete()
       .eq("council_id", councilId).eq("user_id", user.id);
     if (error) throw error;
   });
@@ -520,7 +536,7 @@ export function dissolveCouncil() {
   const councilId = c?.id;
   if (!councilId) return;
   void safelySync("Dissolve council", async () => {
-    const { error } = await councilDb.from("councils").delete().eq("id", councilId);
+    const { error } = await supabase.from("councils").delete().eq("id", councilId);
     if (error) throw error;
   });
 }
@@ -712,7 +728,7 @@ export function updateMyDaily(patch: Partial<MemberDailyStats>) {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
       if (!user) return;
-      const { error } = await councilDb.from("council_members")
+      const { error } = await supabase.from("council_members")
         .update({ daily_stats: m.daily }).eq("council_id", councilId).eq("user_id", user.id);
       if (error) throw error;
     });
