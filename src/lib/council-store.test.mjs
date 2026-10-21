@@ -320,7 +320,9 @@ describe("updateMyDaily", () => {
     expect(calls).toEqual([{
       table: "council_members",
       action: "update",
-      payload: expect.objectContaining({ tasksDone: 1, tasksTotal: 3 }),
+      payload: expect.objectContaining({
+        daily_stats: expect.objectContaining({ tasksDone: 1, tasksTotal: 3 }),
+      }),
       filters: [["eq", "council_id", "council-1"], ["eq", "user_id", "user-1"]],
     }]);
   });
