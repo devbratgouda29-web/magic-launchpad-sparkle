@@ -106,6 +106,7 @@ function seedLocalCouncil() {
     mockLedger: [],
     votes: [],
   };
+  memory.set("ftlb.council.me.v1", JSON.stringify({ userTag: "#USR-ME1", name: "You", userId: "user-1" }));
   memory.set("ftlb.council.v1", JSON.stringify(council));
   return council;
 }
@@ -188,6 +189,7 @@ describe("joinCouncilByTag (Supabase primary)", () => {
   });
 
   test("unknown tag returns a safe error without inventing membership", async () => {
+    results = [{ data: null, error: null }, { data: null, error: null }];
     expect(await store.joinCouncilByTag("CNL-NONE")).toEqual({ ok: false, error: "No active council found with that tag." });
     expect(store.getCouncil()).toBeNull();
   });

@@ -437,10 +437,17 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
   const formattedTag = clean.startsWith("#") ? clean : `#${clean}`;
   const me = getMe();
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError) {
-    alertCouncilFailure("Find council", authError);
-    return { ok: false, error: errorMessage(authError) };
+  let user: { id: string } | null = null;
+  try {
+    const auth = await supabase.auth.getUser();
+    if (auth.error) {
+      alertCouncilFailure("Find council", auth.error);
+      return { ok: false, error: errorMessage(auth.error) };
+    }
+    user = auth.data.user;
+  } catch (error) {
+    alertCouncilFailure("Find council", error);
+    return { ok: false, error: errorMessage(error) };
   }
   if (!user) {
     toast.error("Sign in required", { description: "Sign in to join a council." });
