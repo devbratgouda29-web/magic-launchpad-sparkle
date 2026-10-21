@@ -359,9 +359,16 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
   const councilTag = makeCouncilTag();
   const councilName = name.trim() || "The War Council";
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError) {
-    alertCouncilFailure("Forge council", authError);
+  let user: { id: string } | null = null;
+  try {
+    const auth = await supabase.auth.getUser();
+    if (auth.error) {
+      alertCouncilFailure("Forge council", auth.error);
+      return null;
+    }
+    user = auth.data.user;
+  } catch (error) {
+    alertCouncilFailure("Forge council", error);
     return null;
   }
   if (!user) {
@@ -370,6 +377,7 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
   }
 
   let dbCouncilId: string;
+  let dbCouncilTag = councilTag;
   try {
     const { data: dbCouncil, error: insertError } = await supabase
       .from("councils")
