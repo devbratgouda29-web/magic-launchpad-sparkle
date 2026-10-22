@@ -29,7 +29,29 @@ async function safelySync(action: string, operation: () => Promise<void>) {
   }
 }
 
+// Helper to reliably resolve the user's display name from auth or local storage
+async function resolveUserName(): Promise<string> {
+  if (typeof window === "undefined") return "Devbrat";
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.user_metadata) {
+      const metaName = user.user_metadata.full_name || user.user_metadata.name;
+      if (typeof metaName === "string" && metaName.trim()) {
+        return metaName.trim();
+      }
+    }
+  } catch {}
+  
+  try {
+    const raw = localStorage.getItem(K_ME);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.name && parsed.name !== "You") return parsed.name;
+    }
+  } catch {}
 
+  return "Devbrat";
+}
 
 // THE WAR COUNCIL — Supabase-backed store for the multiplayer accountability cell.
 // Real-life friends only: no random matchmaking, no public directories.
@@ -152,12 +174,16 @@ export function makeCouncilTag() {
 
 // -------- Me --------
 export function getMe(): Me {
-  if (typeof window === "undefined") return { userTag: "#USR-XXXX", name: "You" };
+  if (typeof window === "undefined") return { userTag: "#USR-XXXX", name: "Devbrat" };
   try {
     const raw = localStorage.getItem(K_ME);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.name === "You") parsed.name = "Devbrat";
+      return parsed;
+    }
   } catch {}
-  const me: Me = { userTag: makeUserTag(), name: "You" };
+  const me: Me = { userTag: makeUserTag(), name: "Devbrat" };
   localStorage.setItem(K_ME, JSON.stringify(me));
   return me;
 }
@@ -218,7 +244,6 @@ function save(c: Council | null) {
 }
 
 // Rebuild the local council session from Supabase — the database wins.
-// Called when the council screen opens so multi-device state stays honest.
 export async function refreshCouncilFromSupabase(): Promise<Council | null> {
   if (typeof window === "undefined") return null;
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -233,7 +258,7 @@ export async function refreshCouncilFromSupabase(): Promise<Council | null> {
       .eq("user_id", user.id).maybeSingle();
     if (seatError) throw seatError;
     if (!seat) {
-      if (getCouncil()) save(null); // stale local cache — the database has no membership
+      if (getCouncil()) save(null);
       return null;
     }
     const { data: dbCouncil, error: councilError } = await supabase
@@ -260,7 +285,7 @@ export async function refreshCouncilFromSupabase(): Promise<Council | null> {
       return {
         userTag: row.user_tag,
         userId: row.user_id,
-        name: row.name,
+        name: row.name === "You" ? "Devbrat" : row.name,
         joinedAt: Number.isFinite(joinedAt) ? joinedAt : (prev?.joinedAt ?? Date.now()),
         isLeader: row.is_leader,
         productivityRank: prev?.productivityRank ?? 1,
@@ -356,6 +381,7 @@ function recomputeRanks(c: Council) {
 
 export async function forgeCouncil(name: string): Promise<Council | null> {
   const me = getMe();
+  const realName = await resolveUserName();
   const councilTag = makeCouncilTag();
   const councilName = name.trim() || "The War Council";
 
@@ -389,7 +415,7 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
 
     const { error: memberError } = await supabase.from("council_members").insert([{
       council_id: dbCouncil.id, user_id: user.id, user_tag: me.userTag,
-      name: me.name, is_leader: true, daily_stats: defaultDaily(),
+      name: realName, is_leader: true, daily_stats: defaultDaily(),
     }]);
     if (memberError) throw memberError;
     dbCouncilId = dbCouncil.id;
@@ -408,7 +434,7 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
       {
         userTag: me.userTag,
         userId: user.id,
-        name: me.name,
+        name: realName,
         joinedAt: Date.now(),
         isLeader: true,
         productivityRank: 1,
@@ -436,6 +462,7 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
   const clean = tag.trim().toUpperCase();
   const formattedTag = clean.startsWith("#") ? clean : `#${clean}`;
   const me = getMe();
+  const realName = await resolveUserName();
 
   let user: { id: string } | null = null;
   try {
@@ -454,8 +481,6 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
     return { ok: false, error: "Sign in to join a council." };
   }
 
-  // Case-insensitive lookup straight against Supabase: by council tag first,
-  // then by any member's player tag. No local-only matching.
   let target: { id: string; council_tag: string; name: string } | null = null;
   try {
     const { data: byCouncilTag, error: councilError } = await supabase
@@ -498,7 +523,7 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
     }
     const { error: insertError } = await supabase.from("council_members").insert([{
       council_id: target.id, user_id: user.id, user_tag: me.userTag,
-      name: me.name, is_leader: false, daily_stats: defaultDaily(),
+      name: realName, is_leader: false, daily_stats: defaultDaily(),
     }]);
     if (insertError) throw insertError;
   } catch (error) {
@@ -506,7 +531,6 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
     return { ok: false, error: errorMessage(error) };
   }
 
-  // Pull the full remote roster so the joined session mirrors Supabase.
   const hydrated = await refreshCouncilFromSupabase();
   if (!hydrated) {
     return { ok: false, error: "Seat created, but the roster could not be loaded. Reopen the council screen." };
@@ -516,7 +540,6 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
 
 export function leaveCouncil() {
   const c = getCouncil();
-  // Clear immediately, even when authentication or the remote delete fails.
   save(null);
   const councilId = c?.id;
   if (!councilId) return;
