@@ -37,7 +37,7 @@ import {
   forgeCouncil,
   getCouncil,
   getMe,
-  joinCouncilByTag,
+  submitJoinRequest,
   leaveCouncil,
   logMockScore,
   MAX_MEMBERS,
