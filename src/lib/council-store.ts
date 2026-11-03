@@ -458,8 +458,10 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
   return c;
 }
 
-export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; error?: string }> {
-  const clean = tag.trim().toUpperCase();
+// A join request replaces the old instant auto-join: the leader must approve
+// before a seat is created (Clash-of-Clans style).
+export async function submitJoinRequest(rawTag: string): Promise<JoinRequestOutcome> {
+  const clean = rawTag.trim().toUpperCase();
   const formattedTag = clean.startsWith("#") ? clean : `#${clean}`;
   const me = getMe();
   const realName = await resolveUserName();
@@ -477,8 +479,8 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
     return { ok: false, error: errorMessage(error) };
   }
   if (!user) {
-    toast.error("Sign in required", { description: "Sign in to join a council." });
-    return { ok: false, error: "Sign in to join a council." };
+    toast.error("Sign in required", { description: "Sign in to request to join a council." });
+    return { ok: false, error: "Sign in to request to join a council." };
   }
 
   let target: { id: string; council_tag: string; name: string } | null = null;
@@ -510,32 +512,44 @@ export async function joinCouncilByTag(tag: string): Promise<{ ok: boolean; erro
   if (!target) return { ok: false, error: "No active council found with that tag." };
 
   try {
-    const { data: currentMembers, error: membersError } = await supabase
-      .from("council_members").select("user_id, user_tag")
+    const { data: mySeat, error: seatError } = await supabase
+      .from("council_members").select("council_id")
+      .eq("user_id", user.id).maybeSingle();
+    if (seatError) throw seatError;
+    if (mySeat) {
+      return {
+        ok: false,
+        error: mySeat.council_id === target.id
+          ? "You are already a member of this council."
+          : "You already sit in a council. Abandon it before joining another.",
+      };
+    }
+    const { data: roster, error: rosterError } = await supabase
+      .from("council_members").select("user_id")
       .eq("council_id", target.id);
-    if (membersError) throw membersError;
-    const members = currentMembers ?? [];
-    if (members.length >= MAX) {
+    if (rosterError) throw rosterError;
+    if ((roster ?? []).length >= MAX) {
       return { ok: false, error: "Council is full (Maximum 5 seats occupied)." };
     }
-    if (members.some((m) => m.user_id === user.id || m.user_tag.toUpperCase() === me.userTag.toUpperCase())) {
-      return { ok: false, error: "You are already a member of this council." };
-    }
-    const { error: insertError } = await supabase.from("council_members").insert([{
-      council_id: target.id, user_id: user.id, user_tag: me.userTag,
-      name: realName, is_leader: false, daily_stats: defaultDaily(),
+    const { data: existing, error: existingError } = await supabase
+      .from("council_join_requests").select("id")
+      .eq("council_id", target.id).eq("requester_id", user.id).eq("status", "pending")
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing) return { ok: true, status: "pending" };
+    const { error: insertError } = await supabase.from("council_join_requests").insert([{
+      council_id: target.id,
+      requester_id: user.id,
+      requester_tag: me.userTag,
+      requester_name: realName,
     }]);
     if (insertError) throw insertError;
   } catch (error) {
-    alertCouncilFailure("Join council", error);
+    alertCouncilFailure("Join request", error);
     return { ok: false, error: errorMessage(error) };
   }
 
-  const hydrated = await refreshCouncilFromSupabase();
-  if (!hydrated) {
-    return { ok: false, error: "Seat created, but the roster could not be loaded. Reopen the council screen." };
-  }
-  return { ok: true };
+  return { ok: true, status: "pending" };
 }
 
 export function leaveCouncil() {
