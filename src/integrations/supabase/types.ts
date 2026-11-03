@@ -14,6 +14,88 @@ export type Database = {
   }
   public: {
     Tables: {
+      council_invites: {
+        Row: {
+          council_id: string
+          created_at: string
+          id: string
+          invited_by: string
+          status: string
+          target_tag: string
+          target_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          council_id: string
+          created_at?: string
+          id?: string
+          invited_by: string
+          status?: string
+          target_tag: string
+          target_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          council_id?: string
+          created_at?: string
+          id?: string
+          invited_by?: string
+          status?: string
+          target_tag?: string
+          target_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "council_invites_council_id_fkey"
+            columns: ["council_id"]
+            isOneToOne: false
+            referencedRelation: "councils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      council_join_requests: {
+        Row: {
+          council_id: string
+          created_at: string
+          id: string
+          requester_id: string
+          requester_name: string
+          requester_tag: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          council_id: string
+          created_at?: string
+          id?: string
+          requester_id: string
+          requester_name?: string
+          requester_tag: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          council_id?: string
+          created_at?: string
+          id?: string
+          requester_id?: string
+          requester_name?: string
+          requester_tag?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "council_join_requests_council_id_fkey"
+            columns: ["council_id"]
+            isOneToOne: false
+            referencedRelation: "councils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       council_members: {
         Row: {
           council_id: string
@@ -167,6 +249,7 @@ export type Database = {
           full_name: string | null
           id: string
           updated_at: string
+          user_tag: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -175,6 +258,7 @@ export type Database = {
           full_name?: string | null
           id: string
           updated_at?: string
+          user_tag?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -183,6 +267,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string
+          user_tag?: string | null
         }
         Relationships: []
       }
@@ -386,6 +471,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_council_leader: { Args: { _council_id: string }; Returns: boolean }
+      is_council_member: { Args: { _council_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
