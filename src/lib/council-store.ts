@@ -144,6 +144,9 @@ export type Council = {
 
 export type Me = { userTag: string; name: string; userId?: string };
 
+// Outcome of submitting a join request (leader approval required).
+export type JoinRequestOutcome = { ok: boolean; status?: "pending"; error?: string };
+
 const K_ME = "ftlb.council.me.v1";
 const K_COUNCIL = "ftlb.council.v1";
 const MAX = 5;
