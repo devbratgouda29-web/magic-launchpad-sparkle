@@ -252,6 +252,7 @@ function NoCouncilView() {
   const [name, setName] = useState("");
   const [searchTag, setSearchTag] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [requestPending, setRequestPending] = useState(false);
 
   const handleSearchAndJoin = async () => {
     if (!searchTag.trim()) {
@@ -260,11 +261,13 @@ function NoCouncilView() {
     }
     const cleanTag = searchTag.trim().toUpperCase();
     const formattedTag = cleanTag.startsWith("#") ? cleanTag : `#${cleanTag}`;
-    const r = await joinCouncilByTag(formattedTag);
+    const r = await submitJoinRequest(formattedTag);
     if (!r.ok) {
       setError(r.error ?? "No match found for tag.");
+      setRequestPending(false);
     } else {
       setError(null);
+      setRequestPending(r.status === "pending");
     }
   };
 
@@ -299,6 +302,11 @@ function NoCouncilView() {
           </button>
         </div>
         {error && <p className="mt-2 text-xs text-destructive font-medium">{error}</p>}
+        {requestPending && (
+          <p role="status" className="mt-3 rounded-md border border-accent-amber/40 bg-accent-amber/10 px-3 py-2 text-sm font-semibold text-accent-amber">
+            Pending Leader Approval
+          </p>
+        )}
       </section>
 
       <section className="rounded-2xl border border-primary/40 bg-card p-4">
