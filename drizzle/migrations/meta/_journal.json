@@ -15,6 +15,13 @@
       "when": 1793690087882,
       "tag": "0001_council_invites_join_requests_realtime",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794103211216,
+      "tag": "0002_secure_council_invite_approval_actions",
+      "breakpoints": true
     }
   ]
 }
