@@ -146,6 +146,21 @@ export type Me = { userTag: string; name: string; userId?: string };
 
 // Outcome of submitting a join request (leader approval required).
 export type JoinRequestOutcome = { ok: boolean; status?: "pending"; error?: string };
+export type CouncilInviteNotice = {
+  id: string;
+  councilId: string;
+  councilName: string;
+  invitedBy: string;
+  createdAt: string;
+};
+export type CouncilJoinRequest = {
+  id: string;
+  councilId: string;
+  requesterId: string;
+  requesterTag: string;
+  requesterName: string;
+  createdAt: string;
+};
 
 const K_ME = "ftlb.council.me.v1";
 const K_COUNCIL = "ftlb.council.v1";
@@ -226,6 +241,51 @@ export function setMyUserId(userId: string | null | undefined) {
     }
   }
   emit();
+}
+
+// Keep the public player tag searchable across devices before a player shares it.
+export async function ensureProfileTagSync(): Promise<string> {
+  const me = getMe();
+  try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!user) return me.userTag;
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles").select("user_tag").eq("id", user.id).maybeSingle();
+    if (profileError) throw profileError;
+    const tag = profile?.user_tag || me.userTag;
+    if (!profile?.user_tag) {
+      const { error } = await supabase.from("profiles").update({ user_tag: tag }).eq("id", user.id);
+      if (error) throw error;
+    }
+
+    const nextMe = { ...me, userId: user.id, userTag: tag };
+    localStorage.setItem(K_ME, JSON.stringify(nextMe));
+    const council = getCouncil();
+    if (council) {
+      const member = council.members.find((item) => item.userId === user.id || item.userTag === me.userTag);
+      if (member) {
+        member.userTag = tag;
+        member.userId = user.id;
+        member.name = nextMe.name;
+        save(council);
+        const { error } = await supabase.from("council_members")
+          .update({ user_tag: tag, name: nextMe.name })
+          .eq("council_id", council.id ?? "")
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        emit();
+      }
+    } else {
+      emit();
+    }
+    return tag;
+  } catch (error) {
+    alertCouncilFailure("Sync player tag", error);
+    return me.userTag;
+  }
 }
 
 // -------- Council Storage --------
