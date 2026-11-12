@@ -1,0 +1,1 @@
+GRANT SELECT (user_tag) ON public.profiles TO authenticated;

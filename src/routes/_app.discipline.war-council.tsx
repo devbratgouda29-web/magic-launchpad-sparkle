@@ -37,6 +37,7 @@ import {
   forgeCouncil,
   getCouncil,
   getMe,
+  refreshCouncilFromSupabase,
   submitJoinRequest,
   leaveCouncil,
   logMockScore,
@@ -49,6 +50,7 @@ import {
   setMyUserId,
   subscribeCouncil,
   type Council,
+  type CouncilJoinRequest,
   type Member,
 } from "@/lib/council-store";
 import { ARMORY_GROUPS } from "@/lib/armory";
@@ -68,6 +70,9 @@ import {
   type InspectTask,
 } from "@/lib/report-data";
 import { dateKey } from "@/lib/weekly-badge";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 function ghostStats(member: Member, isMe: boolean): { done: number; total: number } {
   if (isMe) {
@@ -134,7 +139,7 @@ export const Route = createFileRoute("/_app/discipline/war-council")({
   component: WarCouncilPage,
 });
 
-function useCouncilState() {
+function useCouncilState(userId?: string) {
   const [council, setCouncil] = useState<Council | null>(() =>
     typeof window === "undefined" ? null : getCouncil(),
   );
@@ -145,20 +150,45 @@ function useCouncilState() {
     setCouncil(getCouncil());
     setMe(getMe());
     maybeCrownWarlord();
+    let active = true;
+    void refreshCouncilFromSupabase().then((next) => {
+      if (active) setCouncil(next);
+    });
     const u = subscribeCouncil(() => {
       setCouncil(getCouncil());
       setMe(getMe());
     });
     return () => {
+      active = false;
       u();
     };
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    const sync = () => {
+      void refreshCouncilFromSupabase().then((next) => {
+        if (active) setCouncil(next);
+      });
+    };
+    const channel = supabase
+      .channel(`war-council-roster-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "council_members", filter: `user_id=eq.${userId}` }, sync)
+      .on("postgres_changes", { event: "*", schema: "public", table: "council_members", ...(council?.id ? { filter: `council_id=eq.${council.id}` } : {}) }, sync)
+      .on("postgres_changes", { event: "*", schema: "public", table: "councils", ...(council?.id ? { filter: `id=eq.${council.id}` } : {}) }, sync)
+      .subscribe();
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [userId, council?.id]);
   return { council, me };
 }
 
 function WarCouncilPage() {
-  const { council, me } = useCouncilState();
   const { user } = useAuth();
+  const { council, me } = useCouncilState(user?.id);
 
   useEffect(() => {
     setMyUserId(user?.id ?? null);
@@ -189,9 +219,9 @@ function WarCouncilPage() {
       </header>
 
       {council ? (
-        <CouncilView council={council} meTag={me.userTag} avatars={avatars} />
+        <CouncilView council={council} meTag={me.userTag} userId={user?.id ?? null} avatars={avatars} />
       ) : (
-        <NoCouncilView />
+        <NoCouncilView userId={user?.id ?? null} />
       )}
     </div>
   );
@@ -248,11 +278,56 @@ function IdentityCard({ tag, name }: { tag: string; name: string }) {
   );
 }
 
-function NoCouncilView() {
+function NoCouncilView({ userId }: { userId: string | null }) {
   const [name, setName] = useState("");
   const [searchTag, setSearchTag] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [requestPending, setRequestPending] = useState(false);
+  const [pendingCouncilName, setPendingCouncilName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    const loadPendingRequest = async () => {
+      const { data, error: requestError } = await supabase
+        .from("council_join_requests")
+        .select("id, council_id")
+        .eq("requester_id", userId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!active) return;
+      if (requestError) {
+        console.error("[War Council] Could not load pending join request:", requestError);
+        return;
+      }
+      setRequestPending(Boolean(data));
+      if (!data) {
+        setPendingCouncilName(null);
+        return;
+      }
+      const { data: target, error: councilError } = await supabase
+        .from("councils")
+        .select("name")
+        .eq("id", data.council_id)
+        .maybeSingle();
+      if (!active) return;
+      if (councilError) console.error("[War Council] Could not load council name:", councilError);
+      setPendingCouncilName(target?.name ?? null);
+    };
+    void loadPendingRequest();
+    const channel = supabase
+      .channel(`war-council-my-request-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "council_join_requests", filter: `requester_id=eq.${userId}` }, () => {
+        void loadPendingRequest();
+      })
+      .subscribe();
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [userId]);
 
   const handleSearchAndJoin = async () => {
     if (!searchTag.trim()) {
@@ -268,6 +343,7 @@ function NoCouncilView() {
     } else {
       setError(null);
       setRequestPending(r.status === "pending");
+      setPendingCouncilName(null);
     }
   };
 
@@ -304,7 +380,7 @@ function NoCouncilView() {
         {error && <p className="mt-2 text-xs text-destructive font-medium">{error}</p>}
         {requestPending && (
           <p role="status" className="mt-3 rounded-md border border-accent-amber/40 bg-accent-amber/10 px-3 py-2 text-sm font-semibold text-accent-amber">
-            Pending Leader Approval
+            Pending Leader Approval{pendingCouncilName ? ` · ${pendingCouncilName}` : ""}
           </p>
         )}
       </section>
@@ -341,10 +417,12 @@ function NoCouncilView() {
 function CouncilView({
   council,
   meTag,
+  userId,
   avatars,
 }: {
   council: Council;
   meTag: string;
+  userId: string | null;
   avatars: AvatarMap;
 }) {
   const [tab, setTab] = useState<"cell" | "chat" | "report" | "overlord" | "mock" | "exile">(
@@ -354,6 +432,7 @@ function CouncilView({
   const [openMember, setOpenMember] = useState<Member | null>(null);
   const me = council.members.find((m) => m.userTag === meTag);
   const inCouncil = Boolean(me);
+  const isLeader = Boolean(me?.isLeader);
 
   return (
     <div className="flex flex-col gap-4">
@@ -416,6 +495,8 @@ function CouncilView({
           council={council}
           onOpen={setOpenMember}
           inCouncil={inCouncil}
+          isLeader={isLeader}
+          userId={userId}
           avatars={avatars}
         />
       )}
@@ -455,19 +536,83 @@ function CellPanel({
   council,
   onOpen,
   inCouncil,
+  isLeader,
+  userId,
   avatars,
 }: {
   council: Council;
   onOpen: (m: Member) => void;
   inCouncil: boolean;
+  isLeader: boolean;
+  userId: string | null;
   avatars: AvatarMap;
 }) {
   const slots = MAX_MEMBERS - council.members.length;
+  const [joinRequests, setJoinRequests] = useState<CouncilJoinRequest[]>([]);
+  const [requestsError, setRequestsError] = useState<string | null>(null);
+  const [workingRequestId, setWorkingRequestId] = useState<string | null>(null);
   const meTag = getMe().userTag;
   const myTasks = readTodayTaskList();
   const myTaskCounts = {
     done: myTasks.filter((t) => t.done).length,
     total: myTasks.length,
+  };
+
+  useEffect(() => {
+    if (!isLeader || !council.id) {
+      setJoinRequests([]);
+      return;
+    }
+    let active = true;
+    const loadRequests = async () => {
+      const { data, error } = await supabase
+        .from("council_join_requests")
+        .select("id, council_id, requester_id, requester_tag, requester_name, created_at")
+        .eq("council_id", council.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: true });
+      if (!active) return;
+      if (error) {
+        setRequestsError("Could not load join requests. Please try again.");
+        console.error("[War Council] Could not load join requests:", error);
+        return;
+      }
+      setRequestsError(null);
+      setJoinRequests(data ?? []);
+    };
+    void loadRequests();
+    const channel = supabase
+      .channel(`war-council-requests-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "council_join_requests", filter: `council_id=eq.${council.id}` }, () => {
+        void loadRequests();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "council_invites", filter: `council_id=eq.${council.id}` }, () => {
+        void loadRequests();
+      })
+      .subscribe();
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [council.id, isLeader]);
+
+  const handleJoinRequest = async (request: CouncilJoinRequest, approve: boolean) => {
+    setWorkingRequestId(request.id);
+    setRequestsError(null);
+    const result = approve
+      ? await supabase.rpc("approve_council_join_request", { _request_id: request.id })
+      : await supabase
+          .from("council_join_requests")
+          .update({ status: "declined" })
+          .eq("id", request.id)
+          .eq("status", "pending");
+    setWorkingRequestId(null);
+    if (result.error) {
+      setRequestsError(result.error.message || "Could not update this request.");
+      return;
+    }
+    setJoinRequests((current) => current.filter((item) => item.id !== request.id));
+    if (approve) await refreshCouncilFromSupabase();
   };
 
   return (
@@ -545,15 +690,140 @@ function CellPanel({
           );
         })}
         {Array.from({ length: slots }).map((_, i) => (
-          <li
-            key={"slot-" + i}
-            className="flex items-center justify-center rounded-2xl border border-dashed border-border p-4 text-xs text-muted-foreground font-mono"
-          >
-            Empty seat — Share Council Tag to invite
+          <li key={`slot-${i}`}>
+            {isLeader && userId ? (
+              <OpenSeatInvite councilId={council.id} userId={userId} />
+            ) : (
+              <div className="flex min-h-16 items-center justify-center rounded-xl border border-dashed border-border px-4 py-3 text-xs font-mono text-muted-foreground">
+                Open seat
+              </div>
+            )}
           </li>
         ))}
       </ul>
+
+      {isLeader && (
+        <section aria-labelledby="incoming-requests-title" className="border-t border-border pt-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 id="incoming-requests-title" className="font-bold">Incoming Join Requests</h3>
+            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary">{joinRequests.length}</span>
+          </div>
+          {requestsError && <p role="alert" className="mb-3 text-sm text-destructive">{requestsError}</p>}
+          {joinRequests.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No pending requests.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {joinRequests.map((request) => (
+                <li key={request.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{request.requester_name}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{request.requester_tag}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => void handleJoinRequest(request, true)} disabled={workingRequestId !== null}>
+                      {workingRequestId === request.id ? "Working…" : "Approve"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => void handleJoinRequest(request, false)} disabled={workingRequestId !== null}>
+                      Decline
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
+  );
+}
+
+function OpenSeatInvite({ councilId, userId }: { councilId?: string; userId: string }) {
+  const [tag, setTag] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const sendInvite = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const cleanTag = tag.trim().toUpperCase();
+    const formattedTag = cleanTag.startsWith("#") ? cleanTag : `#${cleanTag}`;
+    if (!councilId || !/^#USR-[A-Z0-9]{4}$/.test(formattedTag)) {
+      setError("Enter a player tag in the format #USR-XXXX.");
+      setMessage(null);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const { data: target, error: lookupError } = await supabase
+        .from("profiles")
+        .select("id, user_tag, full_name")
+        .ilike("user_tag", formattedTag)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+      if (!target) throw new Error("No player found with that tag.");
+      if (target.id === userId) throw new Error("You are already in this council.");
+
+      const { data: existingMember, error: memberError } = await supabase
+        .from("council_members")
+        .select("id")
+        .eq("council_id", councilId)
+        .eq("user_id", target.id)
+        .maybeSingle();
+      if (memberError) throw memberError;
+      if (existingMember) throw new Error("That player already has a seat.");
+
+      const { data: existingInvite, error: inviteCheckError } = await supabase
+        .from("council_invites")
+        .select("id")
+        .eq("council_id", councilId)
+        .eq("target_user_id", target.id)
+        .eq("status", "pending")
+        .maybeSingle();
+      if (inviteCheckError) throw inviteCheckError;
+      if (existingInvite) throw new Error("An invite is already pending for that player.");
+
+      const { error: insertError } = await supabase.from("council_invites").insert({
+        council_id: councilId,
+        invited_by: userId,
+        target_user_id: target.id,
+        target_tag: target.user_tag ?? formattedTag,
+      });
+      if (insertError) throw insertError;
+      setMessage(`Invite sent to ${target.user_tag ?? formattedTag}.`);
+      setTag("");
+      toast.success("Council invite sent");
+    } catch (inviteError) {
+      const description = inviteError instanceof Error ? inviteError.message : "Could not send the invite.";
+      setError(description);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={sendInvite} className="rounded-xl border border-dashed border-border p-3">
+      <label className="mb-2 block text-xs font-semibold text-muted-foreground">Invite a player to this open seat</label>
+      <div className="flex gap-2">
+        <input
+          aria-label="Player tag to invite"
+          value={tag}
+          onChange={(event) => {
+            setTag(event.target.value);
+            setError(null);
+            setMessage(null);
+          }}
+          placeholder="#USR-XXXX"
+          className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 font-mono text-sm uppercase"
+        />
+        <Button type="submit" size="sm" disabled={busy || !tag.trim()}>
+          <Send className="h-3.5 w-3.5" /> {busy ? "Sending…" : "Invite"}
+        </Button>
+      </div>
+      {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
+      {message && <p role="status" className="mt-2 text-xs font-medium text-primary">{message}</p>}
+    </form>
   );
 }
 
