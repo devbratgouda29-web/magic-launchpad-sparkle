@@ -17,12 +17,15 @@ const query = (table) => {
     action: "select",
     payload: null,
     filters: [],
+    rowLimit: undefined,
+    optionalSingle: false,
     insert(p) { this.payload = p; this.action = "insert"; return this; },
     update(p) { this.payload = p; this.action = "update"; return this; },
     delete() { this.action = "delete"; return this; },
     select() { return this; },
     single() { return this; },
-    maybeSingle() { return this; },
+    maybeSingle() { this.optionalSingle = true; return this; },
+    limit(value) { this.rowLimit = value; return this; },
     eq(col, val) { this.filters.push(["eq", col, val]); return this; },
     ilike(col, val) { this.filters.push(["ilike", col, val]); return this; },
     order() { return this; },
@@ -32,10 +35,17 @@ const query = (table) => {
         action: this.action,
         payload: this.payload,
         filters: this.filters,
+        ...(this.rowLimit !== undefined ? { limit: this.rowLimit } : {}),
       });
-      const outcome = throws
-        ? Promise.reject(remoteError)
-        : Promise.resolve(results.shift() ?? { data: null, error: remoteError });
+      const response = results.shift() ?? { data: null, error: remoteError };
+      const limitedRows = this.rowLimit && Array.isArray(response.data)
+        ? response.data.slice(0, this.rowLimit)
+        : response.data;
+      const limitedResponse = {
+        ...response,
+        data: this.optionalSingle && Array.isArray(limitedRows) ? limitedRows[0] ?? null : limitedRows,
+      };
+      const outcome = throws ? Promise.reject(remoteError) : Promise.resolve(limitedResponse);
       return outcome.then(resolve, reject);
     },
   };
@@ -149,66 +159,64 @@ describe("forgeCouncil (Supabase primary)", () => {
   });
 });
 
-describe("joinCouncilByTag (Supabase primary)", () => {
-  test("joins by council tag with a case-insensitive lookup and hydrates the roster", async () => {
-    const iso = new Date().toISOString();
+describe("submitJoinRequest (leader approval required)", () => {
+  test("submits a pending request without creating a council seat", async () => {
     results = [
       { data: { id: "council-2", council_tag: "#CNL-ABCD", name: "Friends" }, error: null },
-      { data: [{ user_id: "ally-1", user_tag: "#USR-ALL1" }], error: null },
       { data: null, error: null },
-      { data: { council_id: "council-2" }, error: null },
-      { data: { id: "council-2", council_tag: "#CNL-ABCD", name: "Friends", created_at: iso }, error: null },
-      { data: [{ user_id: "user-1", user_tag: "#USR-ME1", name: "You", is_leader: false, daily_stats: {}, created_at: iso }], error: null },
+      { data: [], error: null },
+      { data: null, error: null },
+      { data: null, error: null },
     ];
-    expect(await store.joinCouncilByTag("cnl-abcd")).toEqual({ ok: true });
-    expect(calls[0]).toMatchObject({ table: "councils", action: "select", filters: [["ilike", "council_tag", "#CNL-ABCD"]] });
-    expect(calls[2]).toMatchObject({ table: "council_members", action: "insert", payload: [expect.objectContaining({ council_id: "council-2", user_id: "user-1" })] });
-    const council = store.getCouncil();
-    expect(council?.id).toBe("council-2");
-    expect(council?.members).toHaveLength(1);
-  });
-
-  test("rejects a full council without inserting a seat", async () => {
-    results = [
-      { data: { id: "council-2", council_tag: "#CNL-ABCD", name: "Friends" }, error: null },
-      { data: Array.from({ length: 5 }, (_, i) => ({ user_id: `u${i}`, user_tag: `#U${i}` })), error: null },
-    ];
-    expect(await store.joinCouncilByTag("CNL-ABCD")).toEqual({ ok: false, error: "Council is full (Maximum 5 seats occupied)." });
-    expect(calls).toHaveLength(2);
+    expect(await store.submitJoinRequest("cnl-abcd")).toEqual({ ok: true, status: "pending" });
+    expect(calls[0]).toMatchObject({ table: "councils", action: "select", filters: [["ilike", "council_tag", "#CNL-ABCD"]], limit: 1 });
+    expect(calls.at(-1)).toMatchObject({
+      table: "council_join_requests",
+      action: "insert",
+      payload: [expect.objectContaining({ council_id: "council-2", requester_id: "user-1" })],
+    });
+    expect(calls.some((call) => call.table === "council_members" && call.action === "insert")).toBe(false);
     expect(store.getCouncil()).toBeNull();
   });
 
-  test("rejects joining a council the user is already in", async () => {
+  test("returns pending when this user already has an open request", async () => {
     results = [
       { data: { id: "council-2", council_tag: "#CNL-ABCD", name: "Friends" }, error: null },
-      { data: [{ user_id: "user-1", user_tag: "#USR-ME1" }], error: null },
+      { data: null, error: null },
+      { data: [], error: null },
+      { data: [{ id: "request-1" }], error: null },
     ];
-    expect(await store.joinCouncilByTag("CNL-ABCD")).toEqual({ ok: false, error: "You are already a member of this council." });
-    expect(calls).toHaveLength(2);
-    expect(store.getCouncil()).toBeNull();
+    expect(await store.submitJoinRequest("CNL-ABCD")).toEqual({ ok: true, status: "pending" });
+    expect(calls).toHaveLength(4);
   });
 
-  test("unknown tag returns a safe error without inventing membership", async () => {
+  test("handles a missing council without creating a request", async () => {
     results = [{ data: null, error: null }, { data: null, error: null }];
-    expect(await store.joinCouncilByTag("CNL-NONE")).toEqual({ ok: false, error: "No active council found with that tag." });
-    expect(store.getCouncil()).toBeNull();
-  });
-
-  test("database failures surface as errors instead of a fake local join", async () => {
-    throws = true;
-    const outcome = await store.joinCouncilByTag("CNL-ABCD");
-    expect(outcome.ok).toBe(false);
+    expect(await store.submitJoinRequest("CNL-NONE")).toEqual({ ok: false, error: "No active council found with that tag." });
     expect(store.getCouncil()).toBeNull();
   });
 
   test("requires a signed-in user", async () => {
     signedOut = true;
-    expect((await store.joinCouncilByTag("CNL-ABCD")).ok).toBe(false);
+    expect((await store.submitJoinRequest("CNL-ABCD")).ok).toBe(false);
     expect(calls).toHaveLength(0);
   });
 });
 
 describe("refreshCouncilFromSupabase", () => {
+  test("limits seat lookup and safely syncs when duplicate seats exist", async () => {
+    const iso = new Date().toISOString();
+    results = [
+      { data: [{ council_id: "council-2" }, { council_id: "council-3" }], error: null },
+      { data: { id: "council-2", council_tag: "#CNL-ABCD", name: "Friends", created_at: iso }, error: null },
+      { data: [{ user_id: "user-1", user_tag: "#USR-ME1", name: "You", is_leader: true, daily_stats: {}, created_at: iso }], error: null },
+    ];
+    const council = await store.refreshCouncilFromSupabase();
+    expect(calls[0]).toMatchObject({ table: "council_members", limit: 1 });
+    expect(council?.id).toBe("council-2");
+    expect(store.getCouncil()?.councilTag).toBe("#CNL-ABCD");
+  });
+
   test("rebuilds the local session from the database membership", async () => {
     const iso = new Date().toISOString();
     results = [

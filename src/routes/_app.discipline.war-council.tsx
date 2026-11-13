@@ -548,6 +548,7 @@ function CellPanel({
   avatars: AvatarMap;
 }) {
   const slots = MAX_MEMBERS - council.members.length;
+  const councilId = council.id;
   const [joinRequests, setJoinRequests] = useState<CouncilJoinRequest[]>([]);
   const [requestsError, setRequestsError] = useState<string | null>(null);
   const [workingRequestId, setWorkingRequestId] = useState<string | null>(null);
@@ -559,7 +560,7 @@ function CellPanel({
   };
 
   useEffect(() => {
-    if (!isLeader || !council.id) {
+    if (!isLeader || !councilId) {
       setJoinRequests([]);
       return;
     }
@@ -568,7 +569,7 @@ function CellPanel({
       const { data, error } = await supabase
         .from("council_join_requests")
         .select("id, council_id, requester_id, requester_tag, requester_name, created_at")
-        .eq("council_id", council.id)
+        .eq("council_id", councilId)
         .eq("status", "pending")
         .order("created_at", { ascending: true });
       if (!active) return;
@@ -578,15 +579,22 @@ function CellPanel({
         return;
       }
       setRequestsError(null);
-      setJoinRequests(data ?? []);
+      setJoinRequests((data ?? []).map((request) => ({
+        id: request.id,
+        councilId: request.council_id,
+        requesterId: request.requester_id,
+        requesterTag: request.requester_tag,
+        requesterName: request.requester_name,
+        createdAt: request.created_at,
+      })));
     };
     void loadRequests();
     const channel = supabase
       .channel(`war-council-requests-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "council_join_requests", filter: `council_id=eq.${council.id}` }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "council_join_requests", filter: `council_id=eq.${councilId}` }, () => {
         void loadRequests();
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "council_invites", filter: `council_id=eq.${council.id}` }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "council_invites", filter: `council_id=eq.${councilId}` }, () => {
         void loadRequests();
       })
       .subscribe();
@@ -594,7 +602,7 @@ function CellPanel({
       active = false;
       void supabase.removeChannel(channel);
     };
-  }, [council.id, isLeader]);
+  }, [councilId, isLeader]);
 
   const handleJoinRequest = async (request: CouncilJoinRequest, approve: boolean) => {
     setWorkingRequestId(request.id);
@@ -716,8 +724,8 @@ function CellPanel({
               {joinRequests.map((request) => (
                 <li key={request.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{request.requester_name}</p>
-                    <p className="font-mono text-xs text-muted-foreground">{request.requester_tag}</p>
+                    <p className="truncate text-sm font-semibold">{request.requesterName}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{request.requesterTag}</p>
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" onClick={() => void handleJoinRequest(request, true)} disabled={workingRequestId !== null}>

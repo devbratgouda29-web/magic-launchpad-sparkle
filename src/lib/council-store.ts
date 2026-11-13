@@ -309,16 +309,16 @@ function save(c: Council | null) {
 // Rebuild the local council session from Supabase — the database wins.
 export async function refreshCouncilFromSupabase(): Promise<Council | null> {
   if (typeof window === "undefined") return null;
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError) {
-    alertCouncilFailure("Sync council", authError);
-    return getCouncil();
-  }
-  if (!user) return null;
   try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!user) {
+      if (getCouncil()) save(null);
+      return null;
+    }
     const { data: seat, error: seatError } = await supabase
       .from("council_members").select("council_id")
-      .eq("user_id", user.id).maybeSingle();
+      .eq("user_id", user.id).order("created_at", { ascending: true }).limit(1).maybeSingle();
     if (seatError) throw seatError;
     if (!seat) {
       if (getCouncil()) save(null);
@@ -472,7 +472,7 @@ export async function forgeCouncil(name: string): Promise<Council | null> {
       .from("councils")
       .insert([{ council_tag: councilTag, name: councilName, created_by: user.id }])
       .select("id, council_tag, name")
-      .single();
+      .maybeSingle();
     if (insertError) throw insertError;
     if (!dbCouncil) throw new Error("Council creation returned no record.");
 
@@ -550,14 +550,14 @@ export async function submitJoinRequest(rawTag: string): Promise<JoinRequestOutc
   try {
     const { data: byCouncilTag, error: councilError } = await supabase
       .from("councils").select("id, council_tag, name")
-      .ilike("council_tag", formattedTag).maybeSingle();
+      .ilike("council_tag", formattedTag).limit(1).maybeSingle();
     if (councilError) throw councilError;
     if (byCouncilTag) {
       target = byCouncilTag;
     } else {
       const { data: memberMatch, error: memberError } = await supabase
         .from("council_members").select("council_id")
-        .ilike("user_tag", formattedTag).maybeSingle();
+        .ilike("user_tag", formattedTag).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (memberError) throw memberError;
       if (memberMatch) {
         const { data: parentCouncil, error: parentError } = await supabase
@@ -577,7 +577,7 @@ export async function submitJoinRequest(rawTag: string): Promise<JoinRequestOutc
   try {
     const { data: mySeat, error: seatError } = await supabase
       .from("council_members").select("council_id")
-      .eq("user_id", user.id).maybeSingle();
+      .eq("user_id", user.id).order("created_at", { ascending: true }).limit(1).maybeSingle();
     if (seatError) throw seatError;
     if (mySeat) {
       return {
@@ -597,7 +597,7 @@ export async function submitJoinRequest(rawTag: string): Promise<JoinRequestOutc
     const { data: existing, error: existingError } = await supabase
       .from("council_join_requests").select("id")
       .eq("council_id", target.id).eq("requester_id", user.id).eq("status", "pending")
-      .maybeSingle();
+      .limit(1).maybeSingle();
     if (existingError) throw existingError;
     if (existing) return { ok: true, status: "pending" };
     const { error: insertError } = await supabase.from("council_join_requests").insert([{
