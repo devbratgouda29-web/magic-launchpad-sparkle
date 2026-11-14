@@ -566,27 +566,33 @@ function CellPanel({
     }
     let active = true;
     const loadRequests = async () => {
-      const { data, error } = await supabase
-        .from("council_join_requests")
-        .select("id, council_id, requester_id, requester_tag, requester_name, created_at")
-        .eq("council_id", councilId)
-        .eq("status", "pending")
-        .order("created_at", { ascending: true });
-      if (!active) return;
-      if (error) {
+      try {
+        const { data, error } = await supabase
+          .from("council_join_requests")
+          .select("id, council_id, requester_id, requester_tag, requester_name, created_at")
+          .eq("council_id", councilId)
+          .eq("status", "pending")
+          .order("created_at", { ascending: true });
+        if (!active) return;
+        if (error) {
+          setRequestsError("Could not load join requests. Please try again.");
+          console.error("[War Council] Could not load join requests:", error);
+          return;
+        }
+        setRequestsError(null);
+        setJoinRequests((data ?? []).map((request) => ({
+          id: request.id,
+          councilId: request.council_id,
+          requesterId: request.requester_id,
+          requesterTag: request.requester_tag,
+          requesterName: request.requester_name,
+          createdAt: request.created_at,
+        })));
+      } catch (error) {
+        if (!active) return;
         setRequestsError("Could not load join requests. Please try again.");
         console.error("[War Council] Could not load join requests:", error);
-        return;
       }
-      setRequestsError(null);
-      setJoinRequests((data ?? []).map((request) => ({
-        id: request.id,
-        councilId: request.council_id,
-        requesterId: request.requester_id,
-        requesterTag: request.requester_tag,
-        requesterName: request.requester_name,
-        createdAt: request.created_at,
-      })));
     };
     void loadRequests();
     const channel = supabase
@@ -607,20 +613,26 @@ function CellPanel({
   const handleJoinRequest = async (request: CouncilJoinRequest, approve: boolean) => {
     setWorkingRequestId(request.id);
     setRequestsError(null);
-    const result = approve
-      ? await supabase.rpc("approve_council_join_request", { _request_id: request.id })
-      : await supabase
-          .from("council_join_requests")
-          .update({ status: "declined" })
-          .eq("id", request.id)
-          .eq("status", "pending");
-    setWorkingRequestId(null);
-    if (result.error) {
-      setRequestsError(result.error.message || "Could not update this request.");
-      return;
+    try {
+      const result = approve
+        ? await supabase.rpc("approve_council_join_request", { _request_id: request.id })
+        : await supabase
+            .from("council_join_requests")
+            .update({ status: "declined" })
+            .eq("id", request.id)
+            .eq("status", "pending");
+      if (result.error) {
+        setRequestsError(result.error.message || "Could not update this request.");
+        return;
+      }
+      setJoinRequests((current) => current.filter((item) => item.id !== request.id));
+      if (approve) await refreshCouncilFromSupabase();
+    } catch (error) {
+      console.error("[War Council] Could not update join request:", error);
+      setRequestsError(error instanceof Error ? error.message : "Could not update this request.");
+    } finally {
+      setWorkingRequestId(null);
     }
-    setJoinRequests((current) => current.filter((item) => item.id !== request.id));
-    if (approve) await refreshCouncilFromSupabase();
   };
 
   return (
@@ -768,6 +780,7 @@ function OpenSeatInvite({ councilId, userId }: { councilId?: string; userId: str
         .from("profiles")
         .select("id, user_tag, full_name")
         .ilike("user_tag", formattedTag)
+        .limit(1)
         .maybeSingle();
       if (lookupError) throw lookupError;
       if (!target) throw new Error("No player found with that tag.");
@@ -778,6 +791,8 @@ function OpenSeatInvite({ councilId, userId }: { councilId?: string; userId: str
         .select("id")
         .eq("council_id", councilId)
         .eq("user_id", target.id)
+        .order("created_at", { ascending: true })
+        .limit(1)
         .maybeSingle();
       if (memberError) throw memberError;
       if (existingMember) throw new Error("That player already has a seat.");
@@ -788,6 +803,8 @@ function OpenSeatInvite({ councilId, userId }: { councilId?: string; userId: str
         .eq("council_id", councilId)
         .eq("target_user_id", target.id)
         .eq("status", "pending")
+        .order("created_at", { ascending: true })
+        .limit(1)
         .maybeSingle();
       if (inviteCheckError) throw inviteCheckError;
       if (existingInvite) throw new Error("An invite is already pending for that player.");
