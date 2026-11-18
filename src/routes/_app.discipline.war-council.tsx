@@ -709,19 +709,12 @@ function CellPanel({
             </li>
           );
         })}
-        {Array.from({ length: slots }).map((_, i) => (
+       {Array.from({ length: slots }).map((_, i) => (
           <li key={`slot-${i}`}>
-            {isLeader && userId ? (
-              <OpenSeatInvite councilId={council.id} userId={userId} />
-            ) : (
-              <div className="flex min-h-16 items-center justify-center rounded-xl border border-dashed border-border px-4 py-3 text-xs font-mono text-muted-foreground">
-                Open seat
-              </div>
-            )}
+            <OpenSeatInvite councilId={council.id} userId={userId ?? ""} />
           </li>
         ))}
       </ul>
-
       {isLeader && (
         <section aria-labelledby="incoming-requests-title" className="border-t border-border pt-4">
           <div className="mb-3 flex items-center justify-between gap-3">
