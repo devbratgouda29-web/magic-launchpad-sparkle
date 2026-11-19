@@ -508,16 +508,14 @@ function CouncilView({
       {tab === "exile" && <ExilePanel council={council} meTag={meTag} />}
 
       <div className="mt-2 flex flex-wrap gap-2">
-        {inCouncil && (
-          <button
-            onClick={() => {
-              if (confirm("Leave this council? Your active seat will open for others.")) leaveCouncil();
-            }}
-            className="flex items-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
-          >
-            <LogOut className="h-3 w-3" /> Abandon Council
-          </button>
-        )}
+        <button
+          onClick={() => {
+            if (confirm("Leave this council? Your active seat will open for others.")) leaveCouncil();
+          }}
+          className="flex items-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
+        >
+          <LogOut className="h-3 w-3" /> Abandon Council
+        </button>
       </div>
 
       {openMember && (
@@ -1574,7 +1572,7 @@ function ExilePanel({ council, meTag }: { council: Council; meTag: string }) {
           <h3 className="text-sm font-bold">Vote to Exile</h3>
         </div>
         <p className="text-[10px] text-muted-foreground">
-          3 downvotes within 24 hours exiles an inactive or dishonest member, opening their seat[span_1](start_span)[span_1](end_span).
+          3 downvotes within 24 hours exiles an inactive or dishonest member, opening their seat.
         </p>
       </div>
       <ul className="flex flex-col gap-2">
